@@ -13,6 +13,7 @@ export type Array<T> = Annotations<T> & {
 };
 
 export type Tuple<T> = Annotations<T> & {
+	__type: 'tuple';
 	type: 'array';
 	prefixItems?: T;
 	items?: false | Field;

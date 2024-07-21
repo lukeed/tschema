@@ -5,9 +5,9 @@ export type Enum<T> = Annotations<T> & {
 };
 
 export declare function Enum<
-	const V extends (boolean | null | number | string)[],
+	const V extends (boolean | null | number | string),
 	F extends Enum<V>,
 >(
-	choices: V,
+	choices: V[],
 	options?: Omit<F, 'enum'>,
 ): F;

@@ -6,3 +6,5 @@ export { Readonly } from './readonly.ts';
 export { Boolean } from './boolean.ts';
 export { String } from './string.ts';
 export { Null } from './null.ts';
+
+export type { Annotations, Field, Infer } from './core.ts';

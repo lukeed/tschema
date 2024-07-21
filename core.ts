@@ -24,18 +24,21 @@ export type Field =
 export type Infer<T> =
 	T extends R<infer X>
 		? Readonly<Infer<X>>
+	: T extends Null
+		? null
+	: T extends Boolean
+		? boolean
 	: T extends String
 		? (T extends { enum: infer V } ? toEnum<V, string> : string)
-	: T extends Number
+	: T extends Number | Integer
 		? (T extends { enum: infer V } ? toEnum<V, number> : number)
 	: T extends Object<infer P>
 		? { [K in keyof P]: Infer<P[K]> }
+	: T extends Tuple<infer I>
+		? Infer<I>
 	: T extends Array<infer I>
 		? Infer<I>[]
-	: T extends Tuple<infer I>
-		? { [K in keyof I]: number }
-	: T extends Enum<infer V>
-		? toEnum<V, never>
+	: T extends Enum<infer V> ? V
 	: {
 			[K in keyof T]: Infer<T[K]>
 		};
