@@ -1,0 +1,17 @@
+{
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-var",
+        "prefer-const",
+        "no-cond-assign",
+        "no-inner-declarations"
+      ]
+    }
+  },
+  "fmt": {
+    "lineWidth": 100,
+    "singleQuote": true,
+    "useTabs": true
+  }
+}
