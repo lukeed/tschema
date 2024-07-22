@@ -7,8 +7,6 @@ import type { Boolean } from './boolean.ts';
 import type { String } from './string.ts';
 import type { Null } from './null.ts';
 
-type toEnum<V, F> = V extends unknown[] ? V[number] : F;
-
 export type Field =
 	| Array<unknown>
 	| Boolean
@@ -30,8 +28,8 @@ export type Infer<T> =
 		? boolean
 	: T extends String<infer E>
 		? E
-	: T extends Number | Integer
-		? (T extends { enum: infer V } ? toEnum<V, number> : number)
+	: T extends Number<infer E> | Integer<infer E>
+		? E
 	: T extends Object<infer P>
 		? { [K in keyof P]: Infer<P[K]> }
 	: T extends Tuple<infer I>

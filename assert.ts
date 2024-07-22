@@ -58,6 +58,32 @@ type N2 = t.Infer<typeof n2>;
 assert<N2>(STRING);
 assert<N2>(NUMBER);
 
+let n3 = t.Number({
+	enum: [1.11, 2.22, 3.33],
+});
+
+assert<t.Number>(n3);
+assert<t.Number<1.11 | 2.22 | 3.33>>(n3);
+type N3 = t.Infer<typeof n3>;
+// @ts-expect-error; number
+assert<N3>(STRING);
+// @ts-expect-error; not enum
+assert<N3>(NUMBER);
+assert<N3>(1.11);
+
+let n4 = t.Integer({
+	enum: [1, 2, 3],
+});
+
+assert<t.Integer>(n4);
+assert<t.Integer<1 | 2 | 3>>(n4);
+type N4 = t.Infer<typeof n4>;
+// @ts-expect-error; number
+assert<N4>(STRING);
+// @ts-expect-error; not enum
+assert<N4>(NUMBER);
+assert<N4>(1);
+
 let o1 = t.Object({
 	name: t.String(),
 	age: t.Number(),

@@ -24,7 +24,7 @@ export type Format =
 	| 'relative-json-pointer'
 	| 'regex';
 
-export type String<E extends string = string> = Annotations<string> & {
+export type String<E extends string = string> = Annotations<E> & {
 	type: 'string';
 	minLength?: number;
 	maxLength?: number;
