@@ -24,11 +24,23 @@ let s2 = t.String({
 	enum: ['foo', 'bar'],
 });
 
-// assert<string>(typeof s2);
-// assert<'foo' | 'bar'>(typeof s2);
-// assert<t.Infer<typeof s2>>('foobar');
-// // @ts-expect-error; string
-// assert<number>(typeof s2);
+type S2 = t.Infer<typeof s2>;
+
+// @ts-expect-error; type
+assert<S2>(NUMBER);
+// @ts-expect-error; not in enum
+assert<S2>(STRING);
+assert<S2>('foo');
+assert<S2>('bar');
+
+declare let a5: string[];
+let s3 = t.String({ enum: a5 });
+type S3 = t.Infer<typeof s3>;
+
+// @ts-expect-error; type
+assert<S3>(NUMBER);
+assert<S3>(STRING);
+assert<S3>('foo');
 
 let n1 = t.Number();
 assert<t.Number>(n1);
@@ -121,6 +133,46 @@ assert<P1>({
 // @ts-expect-error; missing key
 assert<P1>({
 	name: STRING,
+});
+
+let o3 = t.Object({
+	name: t.String(),
+	age: t.Integer({
+		minimum: 18,
+	}),
+	martial: t.String({
+		enum: ['single', 'married', 'widowed', 'divorced', 'separated', 'partnership'],
+	}),
+});
+
+type O3 = t.Infer<typeof o3>;
+
+// checking properties below
+assert<t.Object<unknown>>(o3);
+
+assert<O3>({
+	name: STRING,
+	age: NUMBER,
+	martial: 'single',
+});
+
+assert<O3>({
+	name: STRING,
+	age: NUMBER,
+	// @ts-expect-error; type
+	martial: ['single'],
+});
+
+// @ts-expect-error; missing properties
+assert<O3>({
+	name: STRING,
+});
+
+assert<O3>({
+	name: STRING,
+	age: NUMBER,
+	// @ts-expect-error; enum
+	martial: STRING,
 });
 
 // @ts-expect-error; must be array

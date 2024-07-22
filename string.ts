@@ -24,14 +24,19 @@ export type Format =
 	| 'relative-json-pointer'
 	| 'regex';
 
-export type String = Annotations<string> & {
+export type String<E extends string = string> = Annotations<string> & {
 	type: 'string';
 	minLength?: number;
 	maxLength?: number;
 	pattern?: string;
-	enum?: string[];
 	format?: Format;
+	enum?: E[];
 };
+
+export declare function String<
+	const V extends string,
+	F extends String<V>,
+>(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
 export declare function String<
 	F extends String,

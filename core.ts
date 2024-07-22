@@ -28,8 +28,8 @@ export type Infer<T> =
 		? null
 	: T extends Boolean
 		? boolean
-	: T extends String
-		? (T extends { enum: infer V } ? toEnum<V, string> : string)
+	: T extends String<infer E>
+		? E
 	: T extends Number | Integer
 		? (T extends { enum: infer V } ? toEnum<V, number> : number)
 	: T extends Object<infer P>
@@ -38,7 +38,7 @@ export type Infer<T> =
 		? Infer<I>
 	: T extends Array<infer I>
 		? Infer<I>[]
-	: T extends Enum<infer V> ? V
+	: T extends Enum<infer E> ? E
 	: {
 			[K in keyof T]: Infer<T[K]>
 		};
