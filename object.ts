@@ -1,7 +1,11 @@
 import type { Annotations, Field } from './core.ts';
 import type { String } from './string.ts';
 
-export type Object<T> = Annotations<T> & {
+export type Properties = {
+	[name: string]: Field;
+};
+
+export type Object<T extends Properties> = Annotations<T> & {
 	type: 'object';
 	properties?: {
 		[K in keyof T]: T[K];
@@ -14,8 +18,8 @@ export type Object<T> = Annotations<T> & {
 	maxProperties?: number;
 };
 
-	P extends Record<string, Field>,
 export function Object<
+	P extends Properties,
 	F extends Object<P>,
 >(
 	properties?: P,

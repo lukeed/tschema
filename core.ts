@@ -1,7 +1,7 @@
 import type { Enum } from './enum.ts';
-import type { Object } from './object.ts';
 import type { Array, Tuple } from './array.ts';
 import type { Integer, Number } from './number.ts';
+import type { Object, Properties } from './object.ts';
 import type { Readonly as R } from './readonly.ts';
 import type { Boolean } from './boolean.ts';
 import type { String } from './string.ts';
@@ -14,7 +14,7 @@ export type Field =
 	| Integer
 	| Null
 	| Number
-	| Object<object>
+	| Object<Properties>
 	| String
 	| Tuple<unknown>;
 

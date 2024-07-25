@@ -92,7 +92,7 @@ let o1 = t.Object({
 type O1 = t.Infer<typeof o1>;
 
 // checking properties below
-assert<t.Object<unknown>>(o1);
+assert<t.Object<Record<'name' | 'age', t.Field>>>(o1);
 
 assert<O1>({
 	name: STRING,
@@ -197,6 +197,19 @@ assert<O3>({
 	// @ts-expect-error; enum
 	martial: STRING,
 });
+
+let o4 = t.Object({
+	name: t.String(),
+	age: t.Integer(),
+}, {
+	required: [
+		'name',
+		// @ts-expect-error; not a key
+		'foobar',
+	],
+});
+
+type O4 = t.Infer<typeof o4>;
 
 // @ts-expect-error; must be array
 t.Enum(STRING, NUMBER, NULL);
