@@ -4,6 +4,6 @@ export type Boolean = Annotations<boolean> & {
 	type: 'boolean';
 };
 
-export declare function Boolean<
-	F extends Boolean,
->(options?: Omit<F, 'type'>): F;
+export function Boolean(options?: Omit<Boolean, 'type'>): Boolean {
+	return { ...options, type: 'boolean' };
+}

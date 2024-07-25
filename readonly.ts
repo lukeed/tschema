@@ -4,6 +4,11 @@ export type Readonly<T extends Field> = T & {
 	readOnly: true;
 };
 
-export declare function Readonly<
+export function Readonly<
 	F extends Field,
->(field: F): Readonly<F>;
+>(field: F): Readonly<F> {
+	return {
+		...field,
+		readOnly: true,
+	};
+}

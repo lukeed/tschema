@@ -173,9 +173,6 @@ let o3 = t.Object({
 
 type O3 = t.Infer<typeof o3>;
 
-// checking properties below
-assert<t.Object<unknown>>(o3);
-
 assert<O3>({
 	name: STRING,
 	age: NUMBER,

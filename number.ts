@@ -14,20 +14,32 @@ export type Integer<E extends number = number> = Omit<Number<E>, 'type'> & {
 	type: 'integer';
 };
 
-export declare function Integer<
+export function Integer<
 	const V extends number,
 	F extends Integer<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-export declare function Integer<
+export function Integer<
 	F extends Integer,
 >(options?: Omit<F, 'type'>): F;
 
-export declare function Number<
+export function Integer(
+	options?: Omit<Integer, 'type'>,
+): Integer {
+	return { ...options, type: 'integer' };
+}
+
+export function Number<
 	const V extends number,
 	F extends Number<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-export declare function Number<
+export function Number<
 	F extends Number,
 >(options?: Omit<F, 'type'>): F;
+
+export function Number(
+	options?: Omit<Number, 'type'>,
+): Number {
+	return { ...options, type: 'number' };
+}

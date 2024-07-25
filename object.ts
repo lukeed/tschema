@@ -6,6 +6,7 @@ export type Object<T> = Annotations<T> & {
 	properties?: {
 		[K in keyof T]: T[K];
 	};
+	required?: (keyof T)[];
 	patternProperties?: Field;
 	additionalProperties?: Field | boolean;
 	propertyNames?: Partial<String>;
@@ -13,10 +14,33 @@ export type Object<T> = Annotations<T> & {
 	maxProperties?: number;
 };
 
-export declare function Object<
 	P extends Record<string, Field>,
+export function Object<
 	F extends Object<P>,
 >(
 	properties?: P,
 	options?: Omit<F, 'type' | 'properties'>,
-): F;
+): F {
+	let o = {
+		...options,
+		type: 'object',
+		properties,
+	} as F;
+
+	if (properties && !o.required) {
+		let k: keyof P;
+		let arr: (keyof P)[] = [];
+		for (k in properties) {
+			if (properties[k][OPTIONAL]) {
+				properties[k][OPTIONAL] = undefined;
+			} else {
+				arr.push(k);
+			}
+		}
+		if (arr.length > 0) {
+			o.required = arr;
+		}
+	}
+
+	return o;
+}

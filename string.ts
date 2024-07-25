@@ -33,11 +33,17 @@ export type String<E extends string = string> = Annotations<E> & {
 	enum?: E[];
 };
 
-export declare function String<
+export function String<
 	const V extends string,
 	F extends String<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-export declare function String<
+export function String<
 	F extends String,
 >(options?: Omit<F, 'type'>): F;
+
+export function String(
+	options?: Omit<String, 'type'>,
+): String {
+	return { ...options, type: 'string' };
+}
