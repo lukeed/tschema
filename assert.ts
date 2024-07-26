@@ -6,199 +6,288 @@ const NULL = null;
 const NUMBER = 123;
 const STRING = 'foobar';
 
+// ---
+// STRING / basic
+// ---
+
 let s1 = t.String({ format: 'email' });
 
+assert<t.String<string>>(s1);
 assert<t.String>(s1);
-type S1 = t.Infer<typeof s1>;
-// @ts-expect-error; string
-assert<S1>(NUMBER);
-assert<S1>(STRING);
 
-// @ts-expect-error; string[]
-t.String({ enum: STRING });
+// @ts-expect-error; not an enum
+assert<t.String<''>>(s1);
 
-// @ts-expect-error; string[]
-t.String({ enum: [NUMBER] });
+declare let S1: t.Infer<typeof s1>;
+assert<string>(S1);
+
+// @ts-expect-error; not constant
+assert<''>(S1);
+
+// ---
+// STRING / enum values
+// ---
+
+t.String({
+	// @ts-expect-error; string[]
+	enum: STRING,
+});
+
+t.String({
+	// @ts-expect-error; string[]
+	enum: [NUMBER],
+});
 
 let s2 = t.String({
 	enum: ['foo', 'bar'],
 });
 
-type S2 = t.Infer<typeof s2>;
+assert<t.String<'foo' | 'bar'>>(s2);
+assert<t.String<string>>(s2);
+assert<t.String>(s2);
 
-// @ts-expect-error; type
-assert<S2>(NUMBER);
-// @ts-expect-error; not in enum
-assert<S2>(STRING);
-assert<S2>('foo');
-assert<S2>('bar');
+// @ts-expect-error; incomplete enum
+assert<t.String<'foo'>>(s2);
 
-declare let a5: string[];
-let s3 = t.String({ enum: a5 });
-type S3 = t.Infer<typeof s3>;
+declare let S2: t.Infer<typeof s2>;
 
-// @ts-expect-error; type
-assert<S3>(NUMBER);
-assert<S3>(STRING);
-assert<S3>('foo');
+// @ts-expect-error; incomplete enum
+assert<'foo'>(S2);
+
+assert<'foo' | 'bar'>(S2);
+assert<string>(S2);
+
+// ---
+// STRING / non-constant enum
+// ---
+
+declare let xyz: string[];
+let s3 = t.String({ enum: xyz });
+
+assert<t.String<string>>(s3);
+assert<t.String>(s3);
+
+declare let S3: t.Infer<typeof s3>;
+assert<string>(S3);
+
+// can be any string
+assert<typeof S3>('foobar');
+
+// ---
+// NUMBER / basic
+// ---
 
 let n1 = t.Number();
+assert<t.Number<number>>(n1);
 assert<t.Number>(n1);
-type N1 = t.Infer<typeof n1>;
-// @ts-expect-error; number
-assert<N1>(STRING);
-assert<N1>(NUMBER);
+
+declare let N1: t.Infer<typeof n1>;
+assert<number>(N1);
+
+// @ts-expect-error; not constant/enum
+assert<123>(N1);
+
+// ---
+// INTEGER / basic
+// ---
 
 let n2 = t.Integer();
+assert<t.Integer<number>>(n2);
 assert<t.Integer>(n2);
+
 // @ts-expect-error; distinct types
 assert<t.Number>(n2);
-type N2 = t.Infer<typeof n2>;
-// @ts-expect-error; number
-assert<N2>(STRING);
-assert<N2>(NUMBER);
+
+declare let N2: t.Infer<typeof n2>;
+assert<number>(N2);
+
+// @ts-expect-error; not constant
+assert<123>(N2);
+
+// ---
+// NUMBER / enum
+// ---
 
 let n3 = t.Number({
 	enum: [1.11, 2.22, 3.33],
 });
 
 assert<t.Number>(n3);
+assert<t.Number<number>>(n3);
 assert<t.Number<1.11 | 2.22 | 3.33>>(n3);
-type N3 = t.Infer<typeof n3>;
-// @ts-expect-error; number
-assert<N3>(STRING);
-// @ts-expect-error; not enum
-assert<N3>(NUMBER);
-assert<N3>(1.11);
+
+// @ts-expect-error; incomplete enum
+assert<t.Number<1.11>>(n3);
+
+declare let N3: t.Infer<typeof n3>;
+
+assert<number>(N3);
+assert<1.11 | 2.22 | 3.33>(N3);
+
+// @ts-expect-error; incomplete enum
+assert<1.11 | 2.22>(N3);
+
+// @ts-expect-error; incomplete enum
+assert<1.11>(N3);
+
+// @ts-expect-error; not in enum
+assert<0>(N3);
+
+// ---
+// INTEGER / enum
+// ---
 
 let n4 = t.Integer({
 	enum: [1, 2, 3],
 });
 
 assert<t.Integer>(n4);
+assert<t.Integer<number>>(n4);
 assert<t.Integer<1 | 2 | 3>>(n4);
-type N4 = t.Infer<typeof n4>;
-// @ts-expect-error; number
-assert<N4>(STRING);
-// @ts-expect-error; not enum
-assert<N4>(NUMBER);
-assert<N4>(1);
+
+// @ts-expect-error; incomplete enum
+assert<t.Integer<1>>(n4);
+
+declare let N4: t.Infer<typeof n4>;
+
+assert<number>(N4);
+assert<1 | 2 | 3>(N4);
+
+// @ts-expect-error; incomplete enum
+assert<1 | 2>(N4);
+
+// @ts-expect-error; incomplete enum
+assert<1>(N4);
+
+// @ts-expect-error; not in enum
+assert<0>(N4);
+
+// ---
+// OBJECT / basic
+// ---
 
 let o1 = t.Object({
 	name: t.String(),
 	age: t.Number(),
 });
 
-type O1 = t.Infer<typeof o1>;
+assert<
+	t.Object<{
+		name: t.String<string>;
+		age: t.Number<number>;
+	}>
+>(o1);
 
-// checking properties below
-assert<t.Object<Record<'name' | 'age', t.Field>>>(o1);
+assert<
+	t.Object<{
+		name: t.Field;
+		age: t.Field;
+	}>
+>(o1);
 
-assert<O1>({
-	name: STRING,
-	age: NUMBER,
-});
+declare let O1: t.Infer<typeof o1>;
 
-assert<O1>({
-	name: STRING,
-	// @ts-expect-error; should be NUMBER
-	age: STRING,
-});
+assert<{
+	name: string;
+	age: number;
+}>(O1);
 
-// @ts-expect-error; missing key
-assert<O1>({
-	name: STRING,
-});
+// ---
+// Object / via properties
+// ---
 
-let p1 = {
+let p2 = {
 	name: t.String(),
 	age: t.Integer(),
 };
 
-let o2 = t.Object(p1, {
+let o2 = t.Object(p2, {
 	additionalProperties: false,
 });
 
-assert<t.Object<typeof p1>>(o2);
+assert<t.Object<typeof p2>>(o2);
 
-type P1 = t.Infer<typeof p1>;
 type O2 = t.Infer<typeof o2>;
+type P2 = t.Infer<typeof p2>;
 
-declare let p2: P1;
+declare let O2: O2;
+declare let P2: P2;
 
-assert<P1>(p2);
-assert<O2>(p2);
+// infer as same
+assert<P2>(P2);
+assert<O2>(P2);
+assert<P2>(O2);
 
-assert<O2>({
-	name: STRING,
-	age: NUMBER,
-});
+assert<{
+	name: string;
+	age: number;
+}>(P2);
 
-assert<O2>({
-	name: STRING,
-	// @ts-expect-error; should be NUMBER
-	age: STRING,
-});
+assert<{
+	name: string;
+	age: number;
+}>(O2);
 
-// @ts-expect-error; missing key
-assert<O2>({
-	name: STRING,
-});
-
-assert<P1>({
-	name: STRING,
-	age: NUMBER,
-});
-
-assert<P1>({
-	name: STRING,
-	// @ts-expect-error; should be NUMBER
-	age: STRING,
-});
-
-// @ts-expect-error; missing key
-assert<P1>({
-	name: STRING,
-});
+// ---
+// Object / with enum property
+// ---
 
 let o3 = t.Object({
 	name: t.String(),
 	age: t.Integer({
 		minimum: 18,
 	}),
-	martial: t.String({
+	status: t.String({
 		enum: ['single', 'married', 'widowed', 'divorced', 'separated', 'partnership'],
 	}),
 });
 
-type O3 = t.Infer<typeof o3>;
+declare let O3: t.Infer<typeof o3>;
 
-assert<O3>({
+assert<{
+	name: string;
+	age: number;
+	status: 'single' | 'married' | 'widowed' | 'divorced' | 'separated' | 'partnership';
+}>(O3);
+
+assert<{
+	name: string;
+	age: number;
+	status: string; // generic match ok
+}>(O3);
+
+assert<typeof O3>({
 	name: STRING,
 	age: NUMBER,
-	martial: 'single',
+	status: 'single',
 });
 
-assert<O3>({
-	name: STRING,
-	age: NUMBER,
-	// @ts-expect-error; type
-	martial: ['single'],
-});
+assert<{
+	name: string;
+	age: number;
+	status: 'single' | 'married';
+}>(
+	// @ts-expect-error; incomplete enum
+	O3,
+);
 
 // @ts-expect-error; missing properties
-assert<O3>({
+assert<typeof O3>({
 	name: STRING,
 });
 
-assert<O3>({
+assert<typeof O3>({
 	name: STRING,
 	age: NUMBER,
 	// @ts-expect-error; enum
-	martial: STRING,
+	status: STRING,
 });
 
-let o4 = t.Object({
+// ---
+// OBJECT / `required` match keys
+// ---
+
+let _ = t.Object({
 	name: t.String(),
 	age: t.Integer(),
 }, {
@@ -209,7 +298,9 @@ let o4 = t.Object({
 	],
 });
 
-type O4 = t.Infer<typeof o4>;
+// ---
+// OBJECT / optional keys
+// ---
 
 let o5 = t.Object({
 	uid: t.Optional(
@@ -221,38 +312,47 @@ let o5 = t.Object({
 	),
 });
 
-type O5 = t.Infer<typeof o5>;
+declare let O5: t.Infer<typeof o5>;
 
-assert<O5>({
+assert<{
+	name: string;
+	uid?: number;
+	age?: number;
+}>(O5);
+
+assert<{
+	name: string;
+	uid: number; // <<
+	age?: number;
+}>(
+	// @ts-expect-error; missing uid optional
+	O5,
+);
+
+assert<typeof O5>({
+	name: STRING,
+});
+
+assert<typeof O5>({
 	name: STRING,
 	age: NUMBER,
 });
 
-assert<O5>({
+assert<typeof O5>({
 	name: STRING,
-	age: undefined,
-});
-
-assert<O5>({
 	uid: NUMBER,
-	name: STRING,
 });
 
-assert<O5>({
+assert<typeof O5>({
 	name: STRING,
-});
-
-assert<O5>({
-	name: STRING,
+	uid: NUMBER,
 	// @ts-expect-error; not number
 	age: STRING,
 });
 
-assert<O5>({
-	name: STRING,
-	// @ts-expect-error; not number
-	uid: STRING,
-});
+// ---
+// OBJECT / readonly
+// ---
 
 let o6 = t.Readonly(
 	t.Object({
@@ -263,34 +363,22 @@ let o6 = t.Readonly(
 	}),
 );
 
-type O6 = t.Infer<typeof o6>;
-declare let x6: O6;
+declare let O6: t.Infer<typeof o6>;
 
-assert<O6>({
-	name: STRING,
-	age: NUMBER,
-});
-
-assert<O6>({
-	name: STRING,
-	age: undefined,
-});
-
-assert<O6>({
-	name: STRING,
-});
-
-assert<O6>({
-	name: STRING,
-	// @ts-expect-error; not number
-	age: STRING,
-});
+assert<{
+	readonly name: string;
+	readonly age?: number;
+}>(O6);
 
 // @ts-expect-error; readonly
-x6.age = NUMBER;
+O6.age = NUMBER;
 
 // @ts-expect-error; readonly
-x6.name = STRING;
+O6.name = STRING;
+
+// ---
+// ENUM
+// ---
 
 // @ts-expect-error; must be array
 t.Enum(STRING, NUMBER, NULL);
@@ -308,30 +396,82 @@ assert<E1>(NULL);
 // @ts-expect-error; not in enum
 assert<E1>('howdy');
 
-let a1 = t.Array(
+declare let E1: E1;
+assert<typeof STRING | typeof NUMBER | typeof NULL>(E1);
+assert<'foobar' | 123 | null>(E1);
+
+// ---
+// ARRAY / basic
+// ---
+
+let a1 = t.Array(t.String());
+
+type A1 = t.Infer<typeof a1>;
+declare let A1: A1;
+assert<string[]>(A1);
+assert<A1>([]);
+
+assert<A1>([STRING]);
+
+// @ts-expect-error; not string[]
+assert<A1>([NUMBER]);
+
+// @ts-expect-error; not string[]
+assert<A1>([] as unknown[]);
+
+// ---
+// ARRAY / readonly
+// ---
+
+let a2 = t.Readonly(
+	t.Array(t.String()),
+);
+
+type A2 = t.Infer<typeof a2>;
+declare let A2: A2;
+
+assert<readonly string[]>(A2);
+
+// @ts-expect-error; missing `readonly`
+assert<string[]>(A2);
+
+// @ts-expect-error; cannot assign into readonly
+A2[0] = STRING;
+
+// ---
+// ARRAY / with objects
+// ---
+
+let a3 = t.Array(
 	t.Object({
 		name: t.String(),
 		age: t.Integer(),
 	}),
 );
 
-type A1 = t.Infer<typeof a1>;
+type A3 = t.Infer<typeof a3>;
+declare let A3: A3;
+
+assert<{
+	name: string;
+	age: number;
+}[]>(A3);
 
 // @ts-expect-error; not array
-assert<A1>(NUMBER);
+assert<A3>(NUMBER);
 
-assert<A1>([{
+assert<A3>([{
 	name: STRING,
 	age: NUMBER,
 }]);
 
-assert<A1>([{
+assert<A3>([{
 	name: STRING,
 	// @ts-expect-error; type
 	age: STRING,
 }]);
 
-assert<A1>([
+assert<A3>([
 	// @ts-expect-error; missing key
 	{ name: STRING },
 	// @ts-expect-error; missing key
@@ -340,7 +480,11 @@ assert<A1>([
 	{},
 ]);
 
-let a2 = t.Array(
+// ---
+// ARRAY / with readonly objects
+// ---
+
+let a4 = t.Array(
 	t.Readonly(
 		t.Object({
 			name: t.String(),
@@ -349,23 +493,32 @@ let a2 = t.Array(
 	),
 );
 
-type A2 = t.Infer<typeof a2>;
+type A4 = t.Infer<typeof a4>;
+declare let A4: A4;
 
-// @ts-expect-error; not array
-assert<A2>(NUMBER);
+assert<{
+	readonly name: string;
+	readonly age: number;
+}[]>(A4);
 
-assert<A2>([{
+// @ts-expect-error; readonly object
+A4[0].age = NUMBER;
+
+// array itself is not readonly
+A4[0] = { name: STRING, age: NUMBER };
+
+assert<A4>([{
 	name: STRING,
 	age: NUMBER,
 }]);
 
-assert<A2>([{
+assert<A4>([{
 	name: STRING,
 	// @ts-expect-error; type
 	age: STRING,
 }]);
 
-assert<A2>([
+assert<A4>([
 	// @ts-expect-error; missing key
 	{ name: STRING },
 	// @ts-expect-error; missing key
@@ -374,40 +527,11 @@ assert<A2>([
 	{},
 ]);
 
-declare let x2: A2;
-assert<{
-	readonly name: string;
-	readonly age: number;
-}[]>(x2);
+// ---
+// ARRAY / readonly w/ objects
+// ---
 
-// @ts-expect-error; readonly items
-x2[0].age = NUMBER;
-
-// array itself is not readonly
-x2[0] = { name: STRING, age: NUMBER };
-
-let a3 = t.Readonly(
-	t.Array(t.String()),
-);
-
-type A3 = t.Infer<typeof a3>;
-
-// @ts-expect-error; not array
-assert<A3>(NUMBER);
-
-// @ts-expect-error; not string[]
-assert<A3>([NUMBER]);
-
-declare let x3: A3;
-assert<readonly string[]>(x3);
-
-// @ts-expect-error; missing readonly
-assert<string[]>(x3);
-
-// @ts-expect-error; readonly
-x3[0] = STRING;
-
-let a4 = t.Readonly(
+let a5 = t.Readonly(
 	t.Array(
 		t.Object({
 			name: t.String(),
@@ -415,35 +539,34 @@ let a4 = t.Readonly(
 	),
 );
 
-type A4 = t.Infer<typeof a4>;
-declare let x4: A4;
+type A5 = t.Infer<typeof a5>;
+declare let A5: A5;
 
-assert<readonly { name: string }[]>(x4);
+assert<readonly { name: string }[]>(A5);
 
 // @ts-expect-error; readonly
-x4[0] = { name: STRING };
+A5[0] = { name: STRING };
 
 // items arent readonly
-x4[0].name = STRING;
+A5[0].name = STRING;
+
+// ---
+// TUPLE
+// ---
 
 // @ts-expect-error; must be array
 t.Tuple(t.NUMBER(), t.String());
 
-let t1 = t.Tuple([
-	t.Number(),
-	t.String(),
-]);
+let t1 = t.Tuple([t.Number(), t.String()]);
+assert<t.Tuple<[t.Number<number>, t.String<string>]>>(t1);
+assert<t.Tuple<[t.Number, t.String]>>(t1);
 
-type T1 = t.Infer<typeof t1>;
+declare let T1: t.Infer<typeof t1>;
+assert<[number, string]>(T1);
 
-// @ts-expect-error; not array
-assert<T1>(NUMBER);
-// @ts-expect-error; not array
-assert<T1>(NUMBER, STRING);
-// @ts-expect-error; not match
-assert<T1>([STRING, NUMBER]);
-
-assert<T1>([NUMBER, STRING]);
+// ---
+// TUPLE / with enum
+// ---
 
 let t2 = t.Tuple([
 	t.Enum(['NW', 'NE', 'SW', 'SE'], {
@@ -452,12 +575,12 @@ let t2 = t.Tuple([
 	t.Boolean(),
 ]);
 
-type T2 = t.Infer<typeof t2>;
+assert<t.Tuple<[t.Enum<'NW' | 'NE' | 'SW' | 'SE'>, t.Boolean]>>(t2);
+assert<t.Tuple<[t.Enum<string>, t.Boolean]>>(t2);
 
-// @ts-expect-error; not array
-assert<T2>(NUMBER);
-// @ts-expect-error; not match
-assert<T2>([STRING, NUMBER]);
-// @ts-expect-error; not match
-assert<T2>([STRING, true]);
-assert<T2>(['NW', true]);
+declare let T2: t.Infer<typeof t2>;
+assert<['NW' | 'NE' | 'SW' | 'SE', boolean]>(T2);
+assert<[string, boolean]>(T2);
+
+// @ts-expect-error; STRING is not in ENUM
+assert<typeof T2>([STRING, true]);
