@@ -211,6 +211,38 @@ let o4 = t.Object({
 
 type O4 = t.Infer<typeof o4>;
 
+let o5 = t.Object({
+	uid: t.Optional(
+		t.Integer(),
+	),
+	name: t.String(),
+	age: t.Optional(
+		t.Integer(),
+	),
+});
+
+type O5 = t.Infer<typeof o5>;
+
+assert<O5>({
+	name: STRING,
+	age: NUMBER,
+});
+
+assert<O5>({
+	name: STRING,
+	age: undefined,
+});
+
+assert<O5>({
+	name: STRING,
+});
+
+assert<O5>({
+	name: STRING,
+	// @ts-expect-error; not number
+	age: STRING,
+});
+
 // @ts-expect-error; must be array
 t.Enum(STRING, NUMBER, NULL);
 

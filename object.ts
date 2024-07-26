@@ -1,8 +1,12 @@
+import { OPTIONAL } from './optional.ts';
+
 import type { Annotations, Field } from './core.ts';
 import type { String } from './string.ts';
 
 export type Properties = {
-	[name: string]: Field;
+	[name: string]: Field & {
+		[OPTIONAL]?: true;
+	};
 };
 
 export type Object<T extends Properties> = Annotations<T> & {
