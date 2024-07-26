@@ -1,13 +1,17 @@
 import type { Annotations } from './core.ts';
 
 export type Enum<T> = Annotations<T> & {
-	enum: T;
+	enum: T[];
 };
 
-export declare function Enum<
+export function Enum<
 	const V extends (boolean | null | number | string),
-	F extends Enum<V>,
 >(
 	choices: V[],
-	options?: Omit<F, 'enum'>,
-): F;
+	options?: Omit<Enum<V>, 'enum'>,
+): Enum<V> {
+	return {
+		enum: choices,
+		...options,
+	};
+}
