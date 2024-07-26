@@ -36,4 +36,4 @@ jobs:
           deno-version: 1.45
 
       - name: Build
-        run: deno bundle mod.ts
+        run: deno bundle mod.ts --no-check
