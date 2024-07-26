@@ -234,6 +234,11 @@ assert<O5>({
 });
 
 assert<O5>({
+	uid: NUMBER,
+	name: STRING,
+});
+
+assert<O5>({
 	name: STRING,
 });
 
@@ -242,6 +247,50 @@ assert<O5>({
 	// @ts-expect-error; not number
 	age: STRING,
 });
+
+assert<O5>({
+	name: STRING,
+	// @ts-expect-error; not number
+	uid: STRING,
+});
+
+let o6 = t.Readonly(
+	t.Object({
+		name: t.String(),
+		age: t.Optional(
+			t.Integer(),
+		),
+	}),
+);
+
+type O6 = t.Infer<typeof o6>;
+declare let x6: O6;
+
+assert<O6>({
+	name: STRING,
+	age: NUMBER,
+});
+
+assert<O6>({
+	name: STRING,
+	age: undefined,
+});
+
+assert<O6>({
+	name: STRING,
+});
+
+assert<O6>({
+	name: STRING,
+	// @ts-expect-error; not number
+	age: STRING,
+});
+
+// @ts-expect-error; readonly
+x6.age = NUMBER;
+
+// @ts-expect-error; readonly
+x6.name = STRING;
 
 // @ts-expect-error; must be array
 t.Enum(STRING, NUMBER, NULL);
@@ -324,6 +373,58 @@ assert<A2>([
 	// @ts-expect-error; missing keys
 	{},
 ]);
+
+declare let x2: A2;
+assert<{
+	readonly name: string;
+	readonly age: number;
+}[]>(x2);
+
+// @ts-expect-error; readonly items
+x2[0].age = NUMBER;
+
+// array itself is not readonly
+x2[0] = { name: STRING, age: NUMBER };
+
+let a3 = t.Readonly(
+	t.Array(t.String()),
+);
+
+type A3 = t.Infer<typeof a3>;
+
+// @ts-expect-error; not array
+assert<A3>(NUMBER);
+
+// @ts-expect-error; not string[]
+assert<A3>([NUMBER]);
+
+declare let x3: A3;
+assert<readonly string[]>(x3);
+
+// @ts-expect-error; missing readonly
+assert<string[]>(x3);
+
+// @ts-expect-error; readonly
+x3[0] = STRING;
+
+let a4 = t.Readonly(
+	t.Array(
+		t.Object({
+			name: t.String(),
+		}),
+	),
+);
+
+type A4 = t.Infer<typeof a4>;
+declare let x4: A4;
+
+assert<readonly { name: string }[]>(x4);
+
+// @ts-expect-error; readonly
+x4[0] = { name: STRING };
+
+// items arent readonly
+x4[0].name = STRING;
 
 // @ts-expect-error; must be array
 t.Tuple(t.NUMBER(), t.String());
