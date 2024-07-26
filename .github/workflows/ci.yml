@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "**"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: 1.45
+
+      - name: Lint
+        run: deno lint
+
+      - name: Format
+        run: deno fmt --check
+
+      - name: Type Check
+        run: deno check **/*.ts
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: 1.45
+
+      - name: Build
+        run: deno bundle mod.ts
