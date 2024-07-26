@@ -27,7 +27,7 @@ jobs:
         run: deno check *.ts
 
       - name: Test
-        run: deno test --coverage
+        run: deno test --no-check --coverage
 
       - name: Report
         run: deno coverage
