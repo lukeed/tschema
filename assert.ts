@@ -1,4 +1,4 @@
-import * as t from './index.ts';
+import * as t from './mod.ts';
 
 declare function assert<T>(value: T): void;
 
