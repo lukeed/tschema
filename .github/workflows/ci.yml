@@ -26,6 +26,12 @@ jobs:
       - name: Type Check
         run: deno check *.ts
 
+      - name: Test
+        run: deno test --coverage
+
+      - name: Report
+        run: deno coverage
+
   build:
     name: Build
     runs-on: ubuntu-latest
