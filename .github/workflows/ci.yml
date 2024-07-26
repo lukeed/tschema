@@ -24,7 +24,7 @@ jobs:
         run: deno fmt --check
 
       - name: Type Check
-        run: deno check "**/*.ts"
+        run: deno check *.ts
 
   build:
     name: Build
