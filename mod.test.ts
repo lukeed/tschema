@@ -3,7 +3,6 @@ import { describe, it } from 'jsr:@std/testing/bdd';
 import * as t from './mod.ts';
 
 // TODO: remove [OPTIONAL] key (making it `?: true` breaks Object property infer)
-// TODO: remove __type: 'tuple' (making it `?: true` breaks Array infer)
 
 describe('Null', () => {
 	it('should be a function', () => {
@@ -324,7 +323,6 @@ describe('Tuple', () => {
 
 	// https://json-schema.org/understanding-json-schema/reference/array#tupleValidation
 	it('should be JSON schema', () => {
-		// @ts-expect-error; wants __type
 		assertEquals(t.Tuple(), {
 			type: 'array',
 			prefixItems: undefined,
@@ -332,13 +330,11 @@ describe('Tuple', () => {
 	});
 
 	it('should allow annotations', () => {
-		// @ts-expect-error; wants __type
 		let output = t.Tuple([], {
 			deprecated: true,
 			description: 'hello',
 		});
 
-		// @ts-expect-error; wants __type
 		assertEquals(output, {
 			type: 'array',
 			prefixItems: [],
@@ -348,18 +344,14 @@ describe('Tuple', () => {
 	});
 
 	it('should build "prefixItems" property', () => {
-		let output = t.Tuple(
-			[
-				t.String(),
-				t.Boolean(),
-			], // @ts-expect-error; wants __type
-			{
-				description: 'pair',
-				default: ['foo', true],
-			},
-		);
+		let output = t.Tuple([
+			t.String(),
+			t.Boolean(),
+		], {
+			description: 'pair',
+			default: ['foo', true],
+		});
 
-		// @ts-expect-error; wants __type
 		assertEquals(output, {
 			type: 'array',
 			description: 'pair',

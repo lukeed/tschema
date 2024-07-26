@@ -264,19 +264,6 @@ export type Array<T> = Annotations<T[]> & {
 	prefixItems?: Field[];
 };
 
-export type Tuple<T> = Annotations<T> & {
-	__type: 'tuple';
-	type: 'array';
-	prefixItems?: T;
-	items?: false | Field;
-	minItems?: number;
-	maxItems?: number;
-	uniqueItems?: boolean;
-	contains?: Field;
-	minContains?: number;
-	maxContains?: number;
-};
-
 export function Array<
 	const I extends Field,
 	F extends Array<I>,
@@ -290,6 +277,18 @@ export function Array<
 		items,
 	} as F;
 }
+
+export type Tuple<T> = Annotations<T> & {
+	type: 'array';
+	prefixItems?: T;
+	items?: false; // T[]
+	minItems?: number;
+	maxItems?: number;
+	uniqueItems?: boolean;
+	contains?: Field;
+	minContains?: number;
+	maxContains?: number;
+};
 
 export function Tuple<
 	const M extends Field[],
