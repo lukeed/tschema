@@ -42,4 +42,7 @@ jobs:
           deno-version: 1.45
 
       - name: Build
-        run: deno bundle mod.ts --no-check
+        run: deno task build
+
+      - name: Report Size
+        run: deno task gzip
