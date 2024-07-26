@@ -64,10 +64,10 @@ export type Annotations<T> = {
 	title?: string;
 	description?: string;
 	examples?: T[];
-	default?: T;
 	deprecated?: boolean;
 	readOnly?: boolean;
 	writeOnly?: boolean;
+	default?: Infer<T>;
 };
 
 export type Field =
@@ -252,7 +252,7 @@ export function Number(
 // LISTS
 // ---
 
-export type Array<T> = Annotations<T> & {
+export type Array<T> = Annotations<T[]> & {
 	type: 'array';
 	items?: T;
 	minItems?: number;
