@@ -63,7 +63,7 @@ export type Annotations<T> = {
 	$id?: string;
 	title?: string;
 	description?: string;
-	examples?: T[];
+	examples?: Infer<T>[];
 	deprecated?: boolean;
 	readOnly?: boolean;
 	writeOnly?: boolean;
