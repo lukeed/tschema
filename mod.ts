@@ -84,7 +84,7 @@ export type Field =
 // MODIFIERS
 // ---
 
-const OPTIONAL = Symbol.for('optional');
+const OPTIONAL: unique symbol = Symbol.for('optional');
 
 export type Optional<T extends Field> = T & {
 	[OPTIONAL]: true;

@@ -1,4 +1,7 @@
 {
+	"tasks": {
+		"build": "deno run -A scripts/build.ts"
+	},
 	"lint": {
 		"rules": {
 			"exclude": [
@@ -14,4 +17,9 @@
 		"singleQuote": true,
 		"useTabs": true
 	}
+	},
+	"exclude": [
+		"coverage",
+		"npm"
+	]
 }
