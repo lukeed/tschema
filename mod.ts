@@ -4,7 +4,7 @@ type OmitNever<T> = {
 
 // deno-fmt-ignore
 type __Optionals<T> = OmitNever<{
-	[K in keyof T]: T[K] extends Optional<infer X> ? Infer<X> : never;
+	[K in keyof T]: T[K] extends optional<infer X> ? Infer<X> : never;
 }>;
 
 type Prettify<T> =
@@ -15,7 +15,7 @@ type Prettify<T> =
 	& {};
 
 type RequiredProperties<T> = {
-	[K in keyof T as T[K] extends Optional<infer _> ? never : K]: Infer<T[K]>;
+	[K in keyof T as T[K] extends optional<infer _> ? never : K]: Infer<T[K]>;
 };
 
 type OptionalProperties<T, M = __Optionals<T>> = {
@@ -26,32 +26,28 @@ type OptionalProperties<T, M = __Optionals<T>> = {
 // 	[K in keyof T]: M[K];
 // };
 
-type READ<T> = {
-	readonly [K in keyof T]: T[K];
-};
-
 // deno-fmt-ignore
 export type Infer<T> =
-	T extends Readonly<infer X>
-		? READ<Infer<X>>
-	: T extends Null
+	T extends _readonly<infer X>
+		? Readonly<Infer<X>>
+	: T extends _null
 		? null
-	: T extends Boolean
+	: T extends _bool
 		? boolean
-	: T extends String<infer E>
+	: T extends _string<infer E>
 		? E
-	: T extends Number<infer E> | Integer<infer E>
+	: T extends _num<infer E> | _int<infer E>
 		? E
-	: T extends Object<infer P>
+	: T extends _object<infer P>
 		? Prettify<
 				& RequiredProperties<P>
 				& OptionalProperties<P>
 			>
-	: T extends Tuple<infer I>
+	: T extends tuple<infer I>
 		? Infer<I>
-	: T extends Array<infer I>
+	: T extends array<infer I>
 		? Infer<I>[]
-	: T extends Enum<infer E>
+	: T extends _enum<infer E>
 		? E
 	: {
 			[K in keyof T]: Infer<T[K]>
@@ -71,85 +67,98 @@ export type Annotations<T> = {
 };
 
 export type Field =
-	| Array<unknown>
-	| Boolean
-	| Enum<unknown>
-	| Integer
-	| Null
-	| Number
-	| Object<Properties>
-	| String
-	| Tuple<unknown>;
+	| array<unknown>
+	| _bool
+	| _enum<unknown>
+	| _int
+	| _null
+	| _num
+	| _object<Properties>
+	| _string
+	| tuple<unknown>;
 
 // MODIFIERS
 // ---
 
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
-export type Optional<T extends Field> = T & {
+export type optional<T extends Field> = T & {
 	[OPTIONAL]: true;
 };
 
-export function Optional<
+export function optional<
 	F extends Field,
->(field: F): Optional<F> {
+>(field: F): optional<F> {
 	return {
 		...field,
 		[OPTIONAL]: true,
 	};
+	// return Object.defineProperty(field, OPTIONAL, {
+	// 	value: true,
+	// 	enumerable: false,
+	// 	writable: true,
+	// }) as Optional<F>;
 }
 
-export type Readonly<T extends Field> = T & {
+type _readonly<T extends Field> = T & {
 	readOnly: true;
 };
 
-export function Readonly<T extends Field>(field: T): Readonly<T> {
+function _readonly<T extends Field>(field: T): _readonly<T> {
 	return {
 		...field,
 		readOnly: true,
 	};
 }
 
+export { _readonly as readonly };
+
 // NULL
 // ---
 
-export type Null = Annotations<null> & {
+type _null = Annotations<null> & {
 	type: 'null';
 };
 
-export function Null(options?: Omit<Null, 'type'>): Null {
+function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
 }
+
+export { _null as null };
 
 // ENUM
 // ---
 
-export type Enum<T> = Annotations<T> & {
+type _enum<T> = Annotations<T> & {
 	enum: T[];
 };
 
-export function Enum<
+function _enum<
 	const V extends (boolean | null | number | string),
 >(
 	choices: V[],
-	options?: Omit<Enum<V>, 'enum'>,
-): Enum<V> {
+	options?: Omit<_enum<V>, 'enum'>,
+): _enum<V> {
 	return {
 		enum: choices,
 		...options,
 	};
 }
 
+export { _enum as enum };
+
 // BOOLEAN
 // ---
 
-export type Boolean = Annotations<boolean> & {
+type _bool = Annotations<boolean> & {
 	type: 'boolean';
 };
 
-export function Boolean(options?: Omit<Boolean, 'type'>): Boolean {
+function _bool(options?: Omit<_bool, 'type'>): _bool {
 	return { ...options, type: 'boolean' };
 }
+
+export { _bool as boolean };
 
 // STRING
 // ---
@@ -178,7 +187,7 @@ type Format =
 	| 'relative-json-pointer'
 	| 'regex';
 
-export type String<E extends string = string> = Annotations<E> & {
+type _string<E extends string = string> = Annotations<E> & {
 	type: 'string';
 	minLength?: number;
 	maxLength?: number;
@@ -187,25 +196,27 @@ export type String<E extends string = string> = Annotations<E> & {
 	enum?: E[];
 };
 
-export function String<
+function _string<
 	const V extends string,
-	F extends String<V>,
+	F extends _string<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-export function String<
-	F extends String,
+function _string<
+	F extends _string,
 >(options?: Omit<F, 'type'>): F;
 
-export function String(
-	options?: Omit<String, 'type'>,
-): String {
+function _string(
+	options?: Omit<_string, 'type'>,
+): _string {
 	return { ...options, type: 'string' };
 }
+
+export { _string as string };
 
 // NUMERIC
 // ---
 
-export type Number<E extends number = number> = Annotations<E> & {
+type _num<E extends number = number> = Annotations<E> & {
 	type: 'number';
 	enum?: E[];
 	multipleOf?: number;
@@ -215,44 +226,48 @@ export type Number<E extends number = number> = Annotations<E> & {
 	exclusiveMaximum?: number;
 };
 
-export type Integer<E extends number = number> = Omit<Number<E>, 'type'> & {
+function _num<
+	const V extends number,
+	F extends _num<V>,
+>(options?: Omit<F, 'type'> & { enum: V[] }): F;
+
+function _num<
+	F extends _num,
+>(options?: Omit<F, 'type'>): F;
+
+function _num(
+	options?: Omit<_num, 'type'>,
+): _num {
+	return { ...options, type: 'number' };
+}
+
+export { _num as number };
+
+type _int<E extends number = number> = Omit<_num<E>, 'type'> & {
 	type: 'integer';
 };
 
-export function Integer<
+function _int<
 	const V extends number,
-	F extends Integer<V>,
+	F extends _int<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-export function Integer<
-	F extends Integer,
+function _int<
+	F extends _int,
 >(options?: Omit<F, 'type'>): F;
 
-export function Integer(
-	options?: Omit<Integer, 'type'>,
-): Integer {
+function _int(
+	options?: Omit<_int, 'type'>,
+): _int {
 	return { ...options, type: 'integer' };
 }
 
-export function Number<
-	const V extends number,
-	F extends Number<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
-
-export function Number<
-	F extends Number,
->(options?: Omit<F, 'type'>): F;
-
-export function Number(
-	options?: Omit<Number, 'type'>,
-): Number {
-	return { ...options, type: 'number' };
-}
+export { _int as integer };
 
 // LISTS
 // ---
 
-export type Array<T> = Annotations<T[]> & {
+export type array<T> = Annotations<T[]> & {
 	type: 'array';
 	items?: T;
 	minItems?: number;
@@ -264,9 +279,9 @@ export type Array<T> = Annotations<T[]> & {
 	prefixItems?: Field[];
 };
 
-export function Array<
+export function array<
 	const I extends Field,
-	F extends Array<I>,
+	F extends array<I>,
 >(
 	items?: I,
 	options?: Omit<F, 'type' | 'items'>,
@@ -278,7 +293,7 @@ export function Array<
 	} as F;
 }
 
-export type Tuple<T> = Annotations<T> & {
+export type tuple<T> = Annotations<T> & {
 	type: 'array';
 	prefixItems?: T;
 	items?: false; // T[]
@@ -290,17 +305,17 @@ export type Tuple<T> = Annotations<T> & {
 	maxContains?: number;
 };
 
-export function Tuple<
+export function tuple<
 	const M extends Field[],
 >(
 	members?: M,
-	options?: Omit<Tuple<M>, 'type' | 'prefixItems'>,
-): Tuple<M> {
+	options?: Omit<tuple<M>, 'type' | 'prefixItems'>,
+): tuple<M> {
 	return {
 		...options,
 		type: 'array',
 		prefixItems: members,
-	} as Tuple<M>;
+	} as tuple<M>;
 }
 
 // OBJECT
@@ -312,7 +327,7 @@ type Properties = {
 	};
 };
 
-export type Object<T extends Properties> = Annotations<T> & {
+type _object<T extends Properties> = Annotations<T> & {
 	type: 'object';
 	properties?: {
 		[K in keyof T]: T[K];
@@ -320,14 +335,14 @@ export type Object<T extends Properties> = Annotations<T> & {
 	required?: (keyof T)[];
 	patternProperties?: Field;
 	additionalProperties?: Field | boolean;
-	propertyNames?: Partial<String>;
+	propertyNames?: Partial<_string>;
 	minProperties?: number;
 	maxProperties?: number;
 };
 
-export function Object<
+function _object<
 	P extends Properties,
-	F extends Object<P>,
+	F extends _object<P>,
 >(
 	properties?: P,
 	options?: Omit<F, 'type' | 'properties'>,
@@ -356,3 +371,5 @@ export function Object<
 
 	return o;
 }
+
+export { _object as object };
