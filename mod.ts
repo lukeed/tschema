@@ -343,6 +343,7 @@ export function Object<
 		let arr: (keyof P)[] = [];
 		for (k in properties) {
 			if (properties[k][OPTIONAL]) {
+				// NOTE: delete = deopt
 				properties[k][OPTIONAL] = undefined;
 			} else {
 				arr.push(k);

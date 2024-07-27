@@ -373,6 +373,7 @@ describe('Object', () => {
 	it('should be JSON schema', () => {
 		assertEquals(t.Object(), {
 			type: 'object',
+			properties: undefined,
 		});
 	});
 
@@ -450,12 +451,22 @@ describe('Object', () => {
 			name: t.String(),
 			age: t.Optional(t.Integer()),
 		});
+		// TODO: Make ^ this:
+		//   t.Object<{
+		//     name: t.String<string>;
+		//     age?: t.Integer<number>;
+		//   }>
 
-		assertEquals(output, {
+		// NOTE: age has OPTIONAL symbol
+		// This is dropped natively in JSON
+		let copy = JSON.parse(
+			JSON.stringify(output),
+		);
+
+		assertEquals(copy, {
 			type: 'object',
 			properties: {
 				name: { type: 'string' },
-				// @ts-expect-error; wants OPTIONAL
 				age: { type: 'integer' },
 			},
 			required: ['name'], // <<
