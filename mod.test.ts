@@ -6,18 +6,18 @@ import * as t from './mod.ts';
 
 describe('Null', () => {
 	it('should be a function', () => {
-		assert(typeof t.Null === 'function');
+		assert(typeof t.null === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/null
 	it('should be JSON schema', () => {
-		assertEquals(t.Null(), {
+		assertEquals(t.null(), {
 			type: 'null',
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Null({
+		let output = t.null({
 			deprecated: true,
 			description: 'hello',
 		});
@@ -30,7 +30,7 @@ describe('Null', () => {
 	});
 
 	it('should force "type" property', () => {
-		let output = t.Null({
+		let output = t.null({
 			// @ts-expect-error; not in options definition
 			type: 'other',
 		});
@@ -43,18 +43,18 @@ describe('Null', () => {
 
 describe('Boolean', () => {
 	it('should be a function', () => {
-		assert(typeof t.Boolean === 'function');
+		assert(typeof t.boolean === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/boolean
 	it('should be JSON schema', () => {
-		assertEquals(t.Boolean(), {
+		assertEquals(t.boolean(), {
 			type: 'boolean',
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Boolean({
+		let output = t.boolean({
 			default: false,
 			deprecated: true,
 			description: 'hello',
@@ -69,7 +69,7 @@ describe('Boolean', () => {
 	});
 
 	it('should force "type" property', () => {
-		let output = t.Boolean({
+		let output = t.boolean({
 			// @ts-expect-error; not in options definition
 			type: 'other',
 		});
@@ -82,18 +82,18 @@ describe('Boolean', () => {
 
 describe('String', () => {
 	it('should be a function', () => {
-		assert(typeof t.String === 'function');
+		assert(typeof t.string === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/string
 	it('should be JSON schema', () => {
-		assertEquals(t.String(), {
+		assertEquals(t.string(), {
 			type: 'string',
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.String({
+		let output = t.string({
 			default: 'foobar',
 			deprecated: true,
 			description: 'hello',
@@ -108,7 +108,7 @@ describe('String', () => {
 	});
 
 	it('should force "type" property', () => {
-		let output = t.String({
+		let output = t.string({
 			// @ts-expect-error; not in options definition
 			type: 'other',
 		});
@@ -119,7 +119,7 @@ describe('String', () => {
 	});
 
 	it('should allow "enum" values', () => {
-		let output = t.String({
+		let output = t.string({
 			enum: ['foo', 'bar', 'baz'],
 			default: 'baz',
 		});
@@ -134,18 +134,18 @@ describe('String', () => {
 
 describe('Integer', () => {
 	it('should be a function', () => {
-		assert(typeof t.Integer === 'function');
+		assert(typeof t.integer === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/numeric
 	it('should be JSON schema', () => {
-		assertEquals(t.Integer(), {
+		assertEquals(t.integer(), {
 			type: 'integer',
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Integer({
+		let output = t.integer({
 			default: 123,
 			deprecated: true,
 			description: 'hello',
@@ -160,7 +160,7 @@ describe('Integer', () => {
 	});
 
 	it('should force "type" property', () => {
-		let output = t.Integer({
+		let output = t.integer({
 			// @ts-expect-error; not in options definition
 			type: 'other',
 		});
@@ -171,7 +171,7 @@ describe('Integer', () => {
 	});
 
 	it('should allow "enum" values', () => {
-		let output = t.Integer({
+		let output = t.integer({
 			enum: [1, 2, 3],
 			default: 2,
 		});
@@ -186,18 +186,18 @@ describe('Integer', () => {
 
 describe('Number', () => {
 	it('should be a function', () => {
-		assert(typeof t.Number === 'function');
+		assert(typeof t.number === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/numeric
 	it('should be JSON schema', () => {
-		assertEquals(t.Number(), {
+		assertEquals(t.number(), {
 			type: 'number',
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Number({
+		let output = t.number({
 			default: 123,
 			deprecated: true,
 			description: 'hello',
@@ -212,7 +212,7 @@ describe('Number', () => {
 	});
 
 	it('should force "type" property', () => {
-		let output = t.Number({
+		let output = t.number({
 			// @ts-expect-error; not in options definition
 			type: 'other',
 		});
@@ -223,7 +223,7 @@ describe('Number', () => {
 	});
 
 	it('should allow "enum" values', () => {
-		let output = t.Number({
+		let output = t.number({
 			enum: [1, 2, 3],
 			default: 2,
 		});
@@ -238,18 +238,18 @@ describe('Number', () => {
 
 describe('Enum', () => {
 	it('should be a function', () => {
-		assert(typeof t.Enum === 'function');
+		assert(typeof t.enum === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/enum
 	it('should be JSON schema', () => {
-		assertEquals(t.Enum([]), {
+		assertEquals(t.enum([]), {
 			enum: [],
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Enum(['foo', 123], {
+		let output = t.enum(['foo', 123], {
 			deprecated: true,
 			description: 'hello',
 			default: 'foo',
@@ -266,19 +266,19 @@ describe('Enum', () => {
 
 describe('Array', () => {
 	it('should be a function', () => {
-		assert(typeof t.Array === 'function');
+		assert(typeof t.array === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/array
 	it('should be JSON schema', () => {
-		assertEquals(t.Array(), {
+		assertEquals(t.array(), {
 			type: 'array',
 			items: undefined,
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Array(undefined, {
+		let output = t.array(undefined, {
 			deprecated: true,
 			description: 'hello',
 		});
@@ -292,8 +292,8 @@ describe('Array', () => {
 	});
 
 	it('should build "items" property', () => {
-		let output = t.Array(
-			t.String({
+		let output = t.array(
+			t.string({
 				description: 'item',
 			}),
 			{
@@ -318,19 +318,19 @@ describe('Array', () => {
 
 describe('Tuple', () => {
 	it('should be a function', () => {
-		assert(typeof t.Tuple === 'function');
+		assert(typeof t.tuple === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/array#tupleValidation
 	it('should be JSON schema', () => {
-		assertEquals(t.Tuple(), {
+		assertEquals(t.tuple(), {
 			type: 'array',
 			prefixItems: undefined,
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Tuple([], {
+		let output = t.tuple([], {
 			deprecated: true,
 			description: 'hello',
 		});
@@ -344,9 +344,9 @@ describe('Tuple', () => {
 	});
 
 	it('should build "prefixItems" property', () => {
-		let output = t.Tuple([
-			t.String(),
-			t.Boolean(),
+		let output = t.tuple([
+			t.string(),
+			t.boolean(),
 		], {
 			description: 'pair',
 			default: ['foo', true],
@@ -366,19 +366,19 @@ describe('Tuple', () => {
 
 describe('Object', () => {
 	it('should be a function', () => {
-		assert(typeof t.Object === 'function');
+		assert(typeof t.object === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/object
 	it('should be JSON schema', () => {
-		assertEquals(t.Object(), {
+		assertEquals(t.object(), {
 			type: 'object',
 			properties: undefined,
 		});
 	});
 
 	it('should allow annotations', () => {
-		let output = t.Object(undefined, {
+		let output = t.object(undefined, {
 			deprecated: true,
 			description: 'hello',
 		});
@@ -392,9 +392,9 @@ describe('Object', () => {
 	});
 
 	it('should build "properties" property', () => {
-		let output = t.Object({
-			name: t.String(),
-			age: t.Integer(),
+		let output = t.object({
+			name: t.string(),
+			age: t.integer(),
 		}, {
 			description: 'person',
 			additionalProperties: false,
@@ -429,9 +429,9 @@ describe('Object', () => {
 	});
 
 	it('should respect "required" if provided', () => {
-		let output = t.Object({
-			name: t.String(),
-			age: t.Integer(),
+		let output = t.object({
+			name: t.string(),
+			age: t.integer(),
 		}, {
 			required: ['name'],
 		});
@@ -447,9 +447,9 @@ describe('Object', () => {
 	});
 
 	it('should build "required" from non-Optionals', () => {
-		let output = t.Object({
-			name: t.String(),
-			age: t.Optional(t.Integer()),
+		let output = t.object({
+			name: t.string(),
+			age: t.optional(t.integer()),
 		});
 		// TODO: Make ^ this:
 		//   t.Object<{
@@ -478,13 +478,13 @@ describe('Object', () => {
 
 describe('Readonly', () => {
 	it('should be a function', () => {
-		assert(typeof t.Readonly === 'function');
+		assert(typeof t.readonly === 'function');
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/object
 	it('should be JSON schema', () => {
-		let output = t.Readonly(
-			t.String(),
+		let output = t.readonly(
+			t.string(),
 		);
 
 		assertEquals(output, {
