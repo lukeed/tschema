@@ -28,15 +28,19 @@ function bail(label: string, errors: string[]): never {
 // build "/jsr.json" file
 // @see https://jsr.io/schema/config-file.v1.json
 let jsr = {
-	'name': '@lukeed/tschema',
-	'version': version,
-	'exports': {
+	name: '@lukeed/tschema',
+	version: version,
+	exports: {
 		'.': './mod.ts',
 	},
-	'publish': {
-		'exclude': [
+	publish: {
+		include: [
+			'*.ts',
+			'license',
+			'readme.md',
+		],
+		exclude: [
 			'*.test.ts',
-			'scripts',
 		],
 	},
 };
