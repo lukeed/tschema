@@ -7,20 +7,20 @@ type __Optionals<T> = OmitNever<{
 	[K in keyof T]: T[K] extends optional<infer X> ? Infer<X> : never;
 }>;
 
+type OptionalProperties<T, M = __Optionals<T>> = {
+	[K in keyof M]?: M[K];
+};
+
+type RequiredProperties<T> = {
+	[K in keyof T as T[K] extends optional<infer _> ? never : K]: Infer<T[K]>;
+};
+
 type Prettify<T> =
 	& {
 		[K in keyof T]: Prettify<T[K]>;
 	}
 	// deno-lint-ignore ban-types
 	& {};
-
-type RequiredProperties<T> = {
-	[K in keyof T as T[K] extends optional<infer _> ? never : K]: Infer<T[K]>;
-};
-
-type OptionalProperties<T, M = __Optionals<T>> = {
-	[K in keyof M]?: M[K];
-};
 
 // type InferProperties<T, M = RequiredProperties<T> & OptionalProperties<T>> = {
 // 	[K in keyof T]: M[K];
@@ -32,20 +32,20 @@ export type Infer<T> =
 		? Readonly<Infer<X>>
 	: T extends _null
 		? null
-	: T extends _bool
+	: T extends _boolean
 		? boolean
 	: T extends _string<infer E>
 		? E
-	: T extends _num<infer E> | _int<infer E>
+	: T extends _number<infer E> | _integer<infer E>
 		? E
 	: T extends _object<infer P>
 		? Prettify<
 				& RequiredProperties<P>
 				& OptionalProperties<P>
 			>
-	: T extends tuple<infer I>
+	: T extends _tuple<infer I>
 		? Infer<I>
-	: T extends array<infer I>
+	: T extends _array<infer I>
 		? Infer<I>[]
 	: T extends _enum<infer E>
 		? E
@@ -67,15 +67,15 @@ export type Annotations<T> = {
 };
 
 export type Field =
-	| array<unknown>
-	| _bool
+	| _array<unknown>
+	| _boolean
 	| _enum<unknown>
-	| _int
+	| _integer
 	| _null
-	| _num
+	| _number
 	| _object<Properties>
 	| _string
-	| tuple<unknown>;
+	| _tuple<unknown>;
 
 // MODIFIERS
 // ---
@@ -150,15 +150,15 @@ export { _enum as enum };
 // BOOLEAN
 // ---
 
-type _bool = Annotations<boolean> & {
+type _boolean = Annotations<boolean> & {
 	type: 'boolean';
 };
 
-function _bool(options?: Omit<_bool, 'type'>): _bool {
+function _boolean(options?: Omit<_boolean, 'type'>): _boolean {
 	return { ...options, type: 'boolean' };
 }
 
-export { _bool as boolean };
+export { _boolean as boolean };
 
 // STRING
 // ---
@@ -216,7 +216,7 @@ export { _string as string };
 // NUMERIC
 // ---
 
-type _num<E extends number = number> = Annotations<E> & {
+type _number<E extends number = number> = Annotations<E> & {
 	type: 'number';
 	enum?: E[];
 	multipleOf?: number;
@@ -226,48 +226,48 @@ type _num<E extends number = number> = Annotations<E> & {
 	exclusiveMaximum?: number;
 };
 
-function _num<
+function _number<
 	const V extends number,
-	F extends _num<V>,
+	F extends _number<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-function _num<
-	F extends _num,
+function _number<
+	F extends _number,
 >(options?: Omit<F, 'type'>): F;
 
-function _num(
-	options?: Omit<_num, 'type'>,
-): _num {
+function _number(
+	options?: Omit<_number, 'type'>,
+): _number {
 	return { ...options, type: 'number' };
 }
 
-export { _num as number };
+export { _number as number };
 
-type _int<E extends number = number> = Omit<_num<E>, 'type'> & {
+type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
 	type: 'integer';
 };
 
-function _int<
+function _integer<
 	const V extends number,
-	F extends _int<V>,
+	F extends _integer<V>,
 >(options?: Omit<F, 'type'> & { enum: V[] }): F;
 
-function _int<
-	F extends _int,
+function _integer<
+	F extends _integer,
 >(options?: Omit<F, 'type'>): F;
 
-function _int(
-	options?: Omit<_int, 'type'>,
-): _int {
+function _integer(
+	options?: Omit<_integer, 'type'>,
+): _integer {
 	return { ...options, type: 'integer' };
 }
 
-export { _int as integer };
+export { _integer as integer };
 
 // LISTS
 // ---
 
-export type array<T> = Annotations<T[]> & {
+type _array<T> = Annotations<T[]> & {
 	type: 'array';
 	items?: T;
 	minItems?: number;
@@ -279,9 +279,9 @@ export type array<T> = Annotations<T[]> & {
 	prefixItems?: Field[];
 };
 
-export function array<
+function _array<
 	const I extends Field,
-	F extends array<I>,
+	F extends _array<I>,
 >(
 	items?: I,
 	options?: Omit<F, 'type' | 'items'>,
@@ -293,7 +293,9 @@ export function array<
 	} as F;
 }
 
-export type tuple<T> = Annotations<T> & {
+export { _array as array };
+
+type _tuple<T> = Annotations<T> & {
 	type: 'array';
 	prefixItems?: T;
 	items?: false; // T[]
@@ -305,18 +307,20 @@ export type tuple<T> = Annotations<T> & {
 	maxContains?: number;
 };
 
-export function tuple<
+function _tuple<
 	const M extends Field[],
 >(
 	members?: M,
-	options?: Omit<tuple<M>, 'type' | 'prefixItems'>,
-): tuple<M> {
+	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
+): _tuple<M> {
 	return {
 		...options,
 		type: 'array',
 		prefixItems: members,
-	} as tuple<M>;
+	} as _tuple<M>;
 }
+
+export { _tuple as tuple };
 
 // OBJECT
 // ---
