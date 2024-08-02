@@ -43,4 +43,5 @@ jobs:
 
       - name: gzip (bytes)
         run: |
-          bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c
+          bytes=$(bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
+          echo "::notice::${bytes} b (gzip)"
