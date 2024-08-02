@@ -7,7 +7,8 @@
       "jsr:@std/internal@^1.0.1": "jsr:@std/internal@1.0.1",
       "jsr:@std/path": "jsr:@std/path@0.221.0",
       "jsr:@std/testing": "jsr:@std/testing@0.225.3",
-      "npm:oxc-transform": "npm:oxc-transform@0.22.1"
+      "npm:oxc-transform": "npm:oxc-transform@0.22.1",
+      "npm:terser@~5": "npm:terser@5.31.3"
     },
     "jsr": {
       "@std/assert@0.221.0": {
@@ -33,6 +34,40 @@
       }
     },
     "npm": {
+      "@jridgewell/gen-mapping@0.3.5": {
+        "integrity": "sha512-IzL8ZoEDIBRWEzlCcRhOaCupYyN5gdIK+Q6fbFdPDg6HqX6jpkItn7DFIpW9LQzXG6Df9sA7+OKnq0qlz/GaQg==",
+        "dependencies": {
+          "@jridgewell/set-array": "@jridgewell/set-array@1.2.1",
+          "@jridgewell/sourcemap-codec": "@jridgewell/sourcemap-codec@1.5.0",
+          "@jridgewell/trace-mapping": "@jridgewell/trace-mapping@0.3.25"
+        }
+      },
+      "@jridgewell/resolve-uri@3.1.2": {
+        "integrity": "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==",
+        "dependencies": {}
+      },
+      "@jridgewell/set-array@1.2.1": {
+        "integrity": "sha512-R8gLRTZeyp03ymzP/6Lil/28tGeGEzhx1q2k703KGWRAI1VdvPIXdG70VJc2pAMw3NA6JKL5hhFu1sJX0Mnn/A==",
+        "dependencies": {}
+      },
+      "@jridgewell/source-map@0.3.6": {
+        "integrity": "sha512-1ZJTZebgqllO79ue2bm3rIGud/bOe0pP5BjSRCRxxYkEZS8STV7zN84UBbiYu7jy+eCKSnVIUgoWWE/tt+shMQ==",
+        "dependencies": {
+          "@jridgewell/gen-mapping": "@jridgewell/gen-mapping@0.3.5",
+          "@jridgewell/trace-mapping": "@jridgewell/trace-mapping@0.3.25"
+        }
+      },
+      "@jridgewell/sourcemap-codec@1.5.0": {
+        "integrity": "sha512-gv3ZRaISU3fjPAgNsriBRqGWQL6quFx04YMPW/zD8XMLsU32mhCCbfbO6KZFLjvYpCZ8zyDEgqsgf+PwPaM7GQ==",
+        "dependencies": {}
+      },
+      "@jridgewell/trace-mapping@0.3.25": {
+        "integrity": "sha512-vNk6aEwybGtawWmy/PzwnGDOjCkLWSD2wqvjGGAgOAwCGWySYXfYoxt00IJkTF+8Lb57DwOb3Aa0o9CApepiYQ==",
+        "dependencies": {
+          "@jridgewell/resolve-uri": "@jridgewell/resolve-uri@3.1.2",
+          "@jridgewell/sourcemap-codec": "@jridgewell/sourcemap-codec@1.5.0"
+        }
+      },
       "@oxc-transform/binding-darwin-arm64@0.22.1": {
         "integrity": "sha512-VkQgPTxKvSlbDtIMGLYIMREhavaF9BMtjGCK54ZlwdeawZXIosK7iXcH3arSec/Ckz5haKCDkWqZiNMclNsvOA==",
         "dependencies": {}
@@ -65,6 +100,18 @@
         "integrity": "sha512-QJIy5Rx8swXk9TJTIP/CDLn4gPLiBnUHPdI81rN6EITGQtirRd+QTRdKnYvhtmg+SE34pXR+62Z9OA6BzLcfvQ==",
         "dependencies": {}
       },
+      "acorn@8.12.1": {
+        "integrity": "sha512-tcpGyI9zbizT9JbV6oYE477V6mTlXvvi0T0G3SNIYE2apm/G5huBa1+K89VGeovbg+jycCrfhl3ADxErOuO6Jg==",
+        "dependencies": {}
+      },
+      "buffer-from@1.1.2": {
+        "integrity": "sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==",
+        "dependencies": {}
+      },
+      "commander@2.20.3": {
+        "integrity": "sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==",
+        "dependencies": {}
+      },
       "oxc-transform@0.22.1": {
         "integrity": "sha512-ChSU60HuOYNbsQnJhECEjRybeqy1rBsy+wSVPv8m5RMVrgkPq+Ll+axBVLBjD8g0L8llX2oXA/w4Mlr+kArRig==",
         "dependencies": {
@@ -76,6 +123,26 @@
           "@oxc-transform/binding-linux-x64-musl": "@oxc-transform/binding-linux-x64-musl@0.22.1",
           "@oxc-transform/binding-win32-arm64-msvc": "@oxc-transform/binding-win32-arm64-msvc@0.22.1",
           "@oxc-transform/binding-win32-x64-msvc": "@oxc-transform/binding-win32-x64-msvc@0.22.1"
+        }
+      },
+      "source-map-support@0.5.21": {
+        "integrity": "sha512-uBHU3L3czsIyYXKX88fdrGovxdSCoTGDRZ6SYXtSRxLZUzHg5P/66Ht6uoUlHu9EZod+inXhKo3qQgwXUT/y1w==",
+        "dependencies": {
+          "buffer-from": "buffer-from@1.1.2",
+          "source-map": "source-map@0.6.1"
+        }
+      },
+      "source-map@0.6.1": {
+        "integrity": "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==",
+        "dependencies": {}
+      },
+      "terser@5.31.3": {
+        "integrity": "sha512-pAfYn3NIZLyZpa83ZKigvj6Rn9c/vd5KfYGX7cN1mnzqgDcxWvrU5ZtAfIKhEXz9nRecw4z3LXkjaq96/qZqAA==",
+        "dependencies": {
+          "@jridgewell/source-map": "@jridgewell/source-map@0.3.6",
+          "acorn": "acorn@8.12.1",
+          "commander": "commander@2.20.3",
+          "source-map-support": "source-map-support@0.5.21"
         }
       }
     }
