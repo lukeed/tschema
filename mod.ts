@@ -27,6 +27,24 @@ type Prettify<T> =
 // };
 
 // deno-fmt-ignore
+/**
+ * Infer the TypeScript type(s) information from a {@link Field} definition.
+ *
+ * ```ts
+ * let isPerson = t.object({
+ *   name: t.string(),
+ *   age: t.optional(
+ *     t.integer({ min: 0 })
+ *   )
+ * })
+ *
+ * type Person = t.Infer<typeof isPerson>;
+ * //-> {
+ * //->   name: string;
+ * //->   age?: number;
+ * //-> }
+ * ```
+ */
 export type Infer<T> =
 	T extends _readonly<infer X>
 		? Readonly<Infer<X>>
@@ -53,7 +71,10 @@ export type Infer<T> =
 			[K in keyof T]: Infer<T[K]>
 		};
 
-// https://json-schema.org/understanding-json-schema/reference/annotations
+/**
+ * Common annotation keywords assignable to any field schema.
+ * @see https://json-schema.org/understanding-json-schema/reference/annotations
+ */
 export type Annotations<T> = {
 	$schema?: string;
 	$id?: string;
@@ -66,6 +87,11 @@ export type Annotations<T> = {
 	default?: Infer<T>;
 };
 
+/**
+ * The possible `tschema` field value types.
+ *
+ * NOTE: Does not include modifiers (eg, `t.readonly`).
+ */
 export type Field =
 	| _array<unknown>
 	| _boolean
@@ -82,6 +108,11 @@ export type Field =
 
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
+/**
+ * Mark a field as optional.
+ *
+ * NOTE: Only has an effect within {@link object} definitions.
+ */
 type _optional<T extends Field> = T & {
 	[OPTIONAL]: true;
 };
@@ -93,13 +124,37 @@ function _optional<
 		...field,
 		[OPTIONAL]: true,
 	};
-	// return Object.defineProperty(field, OPTIONAL, {
-	// 	value: true,
-	// 	enumerable: false,
-	// 	writable: true,
-	// }) as Optional<F>;
 }
 
+/**
+ * Mark a field as readonly.
+ *
+ * @example Readonly Object Properties
+ * ```ts
+ * let person = t.readonly(
+ *   t.object({
+ *     name: t.string(),
+ *     age: t.integer(),
+ *   }),
+ * );
+ *
+ * type Person = t.Infer<typeof person>;
+ * //-> {
+ * //->   readonly name: string;
+ * //->   readonly age: number;
+ * //-> }
+ * ```
+ *
+ * @example Readonly Array
+ * ```ts
+ * let items = t.readonly(
+ *   t.array(t.string()),
+ * );
+ *
+ * type Items = t.Infer<typeof items>;
+ * //-> readonly string[]
+ * ```
+ */
 type _readonly<T extends Field> = T & {
 	readOnly: true;
 };
@@ -114,6 +169,11 @@ function _readonly<T extends Field>(field: T): _readonly<T> {
 // NULL
 // ---
 
+/**
+ * Defines a `null` type.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/null)
+ */
 type _null = Annotations<null> & {
 	type: 'null';
 };
@@ -125,6 +185,23 @@ function _null(options?: Omit<_null, 'type'>): _null {
 // ENUM
 // ---
 
+/**
+ * Defines an `enum` type which accepts a list of possible values.
+ *
+ * Because no `type` attribute is defined, the enumerated values may include different data types.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/enum)
+ *
+ * ```ts
+ * // Define possible literal values of different types:
+ * let mixed = t.enum(['error', 'warning', false, 0, 1, 2]);
+ *
+ * // Define a string field with limited string-only values:
+ * let limited = t.string({
+ *   enum: ['error', 'warning', 'off']
+ * });
+ * ```
+ */
 type _enum<T> = Annotations<T> & {
 	enum: T[];
 };
@@ -144,6 +221,11 @@ function _enum<
 // BOOLEAN
 // ---
 
+/**
+ * Defines a `boolean` type.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/boolean)
+ */
 type _boolean = Annotations<boolean> & {
 	type: 'boolean';
 };
@@ -179,6 +261,23 @@ type Format =
 	| 'relative-json-pointer'
 	| 'regex';
 
+/**
+ * Defines a `string` type.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/string)
+ *
+ * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
+ *
+ * ```ts
+ * let x1 = t.string();
+ * type X1 = t.Infer<typeof x1>;
+ * //-> string
+ *
+ * let x2 = t.string({ enum: ['foo', 'bar'] });
+ * type X2 = t.Infer<typeof x2>;
+ * //-> "foo" | "bar"
+ * ```
+ */
 type _string<E extends string = string> = Annotations<E> & {
 	type: 'string';
 	minLength?: number;
@@ -206,6 +305,25 @@ function _string(
 // NUMERIC
 // ---
 
+/**
+ * Defines a `number` type.
+ *
+ * NOTE: A {@link number} is used for integers **or** floating point numbers. See {@link integer} to exclude floats.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#number)
+ *
+ * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
+ *
+ * ```ts
+ * let x1 = t.number();
+ * type X1 = t.Infer<typeof x1>;
+ * //-> number
+ *
+ * let x2 = t.number({ enum: [0, 1, 12.8, 101.3] });
+ * type X2 = t.Infer<typeof x2>;
+ * //-> 0 | 1 | 12.8 | 101.3
+ * ```
+ */
 type _number<E extends number = number> = Annotations<E> & {
 	type: 'number';
 	enum?: E[];
@@ -231,6 +349,25 @@ function _number(
 	return { ...options, type: 'number' };
 }
 
+/**
+ * Defines an `integer` type.
+ *
+ * NOTE: An {@link integer} is used to **only** accept integer numbers. See {@link number} to accept any numeric.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#integer)
+ *
+ * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
+ *
+ * ```ts
+ * let x1 = t.integer();
+ * type X1 = t.Infer<typeof x1>;
+ * //-> number
+ *
+ * let x2 = t.integer({ enum: [0, 1, 2, 3] });
+ * type X2 = t.Infer<typeof x2>;
+ * //-> 0 | 1 | 2 | 3
+ * ```
+ */
 type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
 	type: 'integer';
 };
@@ -253,6 +390,20 @@ function _integer(
 // LISTS
 // ---
 
+/**
+ * Define an `array` type.
+ *
+ * NOTE: The {@link array} is used to define a sequence of arbitrary length where each item matches the same schema.
+ * Consider {@link tuple} to define a sequence of fixed length where each item may have a different schema.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/array)
+ *
+ * ```ts
+ * let hobbies = t.array(t.string());
+ * type Hobbies = t.Infer<typeof hobbies>;
+ * //-> string[]
+ * ```
+ */
 type _array<T> = Annotations<T[]> & {
 	type: 'array';
 	items?: T;
@@ -279,6 +430,23 @@ function _array<
 	} as F;
 }
 
+/**
+ * Define a `tuple` type.
+ *
+ * NOTE: A {@link tuple} is used to define a sequence of fixed length where each item may have a different schema.
+ * Consider {@link array} to define a sequence of arbitrary length where each item matches the same schema.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/array#tupleValidation)
+ *
+ * ```ts
+ * let item = t.tuple([
+ *   t.integer(), // quantity
+ *   t.string(), // item name
+ * ]);
+ * type InvoiceItem = t.Infer<typeof item>;
+ * //-> [number, string]
+ * ```
+ */
 type _tuple<T> = Annotations<T> & {
 	type: 'array';
 	prefixItems?: T;
@@ -313,6 +481,43 @@ type Properties = {
 	};
 };
 
+/**
+ * Define an `object` type.
+ *
+ * @see [Reference](https://json-schema.org/understanding-json-schema/reference/object)
+ *
+ * NOTE: By default, all properties are marked as required.
+ * Use {@link optional} to mark individual properties as optional, or supply
+ * your own `required` attribute.
+ *
+ * @example Basic Usage
+ * ```ts
+ * let pet = t.object({
+ *   name: t.string(),
+ *   type: t.enum(['dog', 'cat', 'other']),
+ *   age: t.optional(t.integer()),
+ * });
+ *
+ * type Pet = t.Infer<typeof pet>;
+ * //-> {
+ * //->   name: string;
+ * //->   type: "dog" | "cat" | "other";
+ * //->   age?: number | undefined;
+ * //-> }
+ * ```
+ *
+ * @example Extra Annotations
+ * ```ts
+ * let pet = t.object({
+ *   name: t.string(),
+ *   age: t.integer(),
+ * }, {
+ *   additionalProperties: false,
+ *   description: 'the Pet schema',
+ *   // ...
+ * });
+ * ```
+ */
 type _object<T extends Properties> = Annotations<T> & {
 	type: 'object';
 	properties?: {
@@ -363,7 +568,7 @@ export {
 	// modifiers
 	_optional as optional,
 	_readonly as readonly,
-	// constants
+	// literals
 	_null as null,
 	_enum as enum,
 	// types
