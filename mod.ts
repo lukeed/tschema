@@ -4,7 +4,7 @@ type OmitNever<T> = {
 
 // deno-fmt-ignore
 type __Optionals<T> = OmitNever<{
-	[K in keyof T]: T[K] extends optional<infer X> ? Infer<X> : never;
+	[K in keyof T]: T[K] extends _optional<infer X> ? Infer<X> : never;
 }>;
 
 type OptionalProperties<T, M = __Optionals<T>> = {
@@ -12,7 +12,7 @@ type OptionalProperties<T, M = __Optionals<T>> = {
 };
 
 type RequiredProperties<T> = {
-	[K in keyof T as T[K] extends optional<infer _> ? never : K]: Infer<T[K]>;
+	[K in keyof T as T[K] extends _optional<infer _> ? never : K]: Infer<T[K]>;
 };
 
 type Prettify<T> =
@@ -82,13 +82,13 @@ export type Field =
 
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
-export type optional<T extends Field> = T & {
+type _optional<T extends Field> = T & {
 	[OPTIONAL]: true;
 };
 
-export function optional<
+function _optional<
 	F extends Field,
->(field: F): optional<F> {
+>(field: F): _optional<F> {
 	return {
 		...field,
 		[OPTIONAL]: true,
@@ -111,8 +111,6 @@ function _readonly<T extends Field>(field: T): _readonly<T> {
 	};
 }
 
-export { _readonly as readonly };
-
 // NULL
 // ---
 
@@ -123,8 +121,6 @@ type _null = Annotations<null> & {
 function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
 }
-
-export { _null as null };
 
 // ENUM
 // ---
@@ -145,8 +141,6 @@ function _enum<
 	};
 }
 
-export { _enum as enum };
-
 // BOOLEAN
 // ---
 
@@ -157,8 +151,6 @@ type _boolean = Annotations<boolean> & {
 function _boolean(options?: Omit<_boolean, 'type'>): _boolean {
 	return { ...options, type: 'boolean' };
 }
-
-export { _boolean as boolean };
 
 // STRING
 // ---
@@ -211,8 +203,6 @@ function _string(
 	return { ...options, type: 'string' };
 }
 
-export { _string as string };
-
 // NUMERIC
 // ---
 
@@ -241,8 +231,6 @@ function _number(
 	return { ...options, type: 'number' };
 }
 
-export { _number as number };
-
 type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
 	type: 'integer';
 };
@@ -261,8 +249,6 @@ function _integer(
 ): _integer {
 	return { ...options, type: 'integer' };
 }
-
-export { _integer as integer };
 
 // LISTS
 // ---
@@ -293,8 +279,6 @@ function _array<
 	} as F;
 }
 
-export { _array as array };
-
 type _tuple<T> = Annotations<T> & {
 	type: 'array';
 	prefixItems?: T;
@@ -319,8 +303,6 @@ function _tuple<
 		prefixItems: members,
 	} as _tuple<M>;
 }
-
-export { _tuple as tuple };
 
 // OBJECT
 // ---
@@ -376,4 +358,20 @@ function _object<
 	return o;
 }
 
-export { _object as object };
+// deno-fmt-ignore
+export {
+	// modifiers
+	_optional as optional,
+	_readonly as readonly,
+	// constants
+	_null as null,
+	_enum as enum,
+	// types
+	_array as array,
+	_boolean as boolean,
+	_integer as integer,
+	_number as number,
+	_object as object,
+	_string as string,
+	_tuple as tuple,
+}
