@@ -1,7 +1,8 @@
 {
-	"version": "1.0.0",
+	"version": "0.0.0",
 	"tasks": {
-		"build": "deno run -A scripts/build.ts"
+		"build": "deno run -A scripts/build.ts",
+		"release": "deno run -A scripts/release.ts"
 	},
 	"lint": {
 		"rules": {
