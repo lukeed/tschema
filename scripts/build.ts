@@ -1,5 +1,5 @@
-import { join, resolve } from 'jsr:@std/path';
-import oxc from 'npm:oxc-transform';
+import { join, resolve } from 'jsr:@std/path@^1.0';
+import oxc from 'npm:oxc-transform@^0.23';
 
 const version = Deno.args[0];
 console.log('? version:', version);
@@ -55,7 +55,7 @@ let pkg = {
 	name: 'tschema',
 	version: version,
 	repository: 'lukeed/tschema',
-	description: 'TODO', // TODO
+	description: 'A tiny (347b) utility to build JSON schema types.',
 	module: 'index.mjs',
 	types: 'index.d.ts',
 	type: 'module',
@@ -75,10 +75,11 @@ let pkg = {
 		url: 'https://lukeed.com',
 	},
 	engines: {
-		node: '>=12',
+		node: '>=14',
 	},
 	keywords: [
-		'json schema',
+		'infer json schema',
+		'json schema builder',
 		'object schema',
 		'typed schema',
 		'typecheck',
