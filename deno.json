@@ -1,7 +1,6 @@
 {
 	"tasks": {
-		"build": "deno run -A scripts/build.ts",
-		"gzip": "deno run -A scripts/gzip.ts"
+		"build": "deno run -A scripts/build.ts"
 	},
 	"lint": {
 		"rules": {

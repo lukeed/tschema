@@ -32,17 +32,15 @@ jobs:
       - name: Report
         run: deno coverage
 
-  build:
-    name: Build
+  gzip:
+    name: Module Size
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v1
+      - uses: oven-sh/setup-bun@v2
         with:
-          deno-version: 1.45
+          bun-version: latest
 
-      - name: Build
-        run: deno task build
-
-      - name: Report Size
-        run: deno task gzip
+      - name: gzip (bytes)
+        run: |
+          bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c
