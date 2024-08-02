@@ -49,25 +49,11 @@ jobs:
           bytes=$(bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
           echo "::notice::${bytes} b (gzip)"
 
-  jsr:
-    needs: [test]
-    name: "Publish → JSR"
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: read
-      id-token: write # -> authentication
-    steps:
-      - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v1
-        with:
-          deno-version: ${{ env.DENO_VERSION }}
-      - run: deno publish --no-check
-
+  # https://jsr.io/docs/publishing-packages#publishing-from-github-actions
   # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages#publishing-packages-to-the-npm-registry
-  npm:
+  publish:
     needs: [test]
-    name: "Publish → npm"
+    name: Publish
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -87,14 +73,18 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           deno task build $VERSION
 
-      - name: Publish (pre-release)
-        if: contains(github.ref, '-next.')
-        run: npm publish --tag next --provenance --access public
+      - name: "Publish → jsr"
+        if: ${{ !contains(github.ref, '-next.') }}
+        run: deno publish --no-check -c jsr.json
+
+      - name: "Publish → npm"
+        if: ${{ !contains(github.ref, '-next.') }}
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish (latest)
-        if: ${{ !contains(github.ref, '-next.') }}
-        run: npm publish --provenance --access public
+      - name: "Publish → npm (pre-release)"
+        if: ${{ contains(github.ref, '-next.') }}
+        run: npm publish --tag next --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

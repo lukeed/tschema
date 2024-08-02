@@ -2,5 +2,6 @@
 node_modules
 
 /npm
-*.lcov
+/jsr.json
 /coverage
+*.lcov

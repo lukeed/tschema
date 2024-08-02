@@ -25,6 +25,29 @@ function bail(label: string, errors: string[]): never {
 	Deno.exit(1);
 }
 
+// build "/jsr.json" file
+// @see https://jsr.io/schema/config-file.v1.json
+let jsr = {
+	'name': '@lukeed/tschema',
+	'version': version,
+	'exports': {
+		'.': './mod.ts',
+	},
+	'publish': {
+		'exclude': [
+			'*.test.ts',
+			'scripts',
+		],
+	},
+};
+
+let outfile = resolve('jsr.json');
+console.log('> writing "jsr.json" file');
+await Deno.writeTextFile(outfile, JSON.stringify(jsr, null, 2));
+
+// build "/npm" package
+// ---
+
 let outdir = resolve('npm');
 
 if (await exists(outdir)) {
@@ -40,7 +63,7 @@ let source = await Deno.readTextFile(entry);
 let esm = oxc.transform(entry, source);
 if (esm.errors.length > 0) bail('transform', esm.errors);
 
-let outfile = join(outdir, 'index.mjs');
+outfile = join(outdir, 'index.mjs');
 console.log('> writing "index.mjs" file');
 await Deno.writeTextFile(outfile, esm.sourceText);
 
