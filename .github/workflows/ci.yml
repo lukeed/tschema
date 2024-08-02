@@ -4,8 +4,11 @@ on:
   push:
     branches:
       - "**"
-    tags-ignore:
-      - "**"
+    tags:
+      - "v**"
+
+env:
+  DENO_VERSION: 1.45
 
 jobs:
   test:
@@ -15,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v1
         with:
-          deno-version: 1.45
+          deno-version: ${{ env.DENO_VERSION }}
 
       - name: Lint
         run: deno lint
@@ -45,3 +48,53 @@ jobs:
         run: |
           bytes=$(bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
           echo "::notice::${bytes} b (gzip)"
+
+  jsr:
+    needs: [test]
+    name: "Publish → JSR"
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write # -> authentication
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+      - run: deno publish --no-check
+
+  # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages#publishing-packages-to-the-npm-registry
+  npm:
+    needs: [test]
+    name: "Publish → npm"
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write # -> authentication
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          deno task build $VERSION
+
+      - name: Publish (pre-release)
+        if: contains(github.ref, '-next.')
+        run: npm publish --tag next --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish (latest)
+        if: ${{ !contains(github.ref, '-next.') }}
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
