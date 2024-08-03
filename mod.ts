@@ -54,6 +54,8 @@ export type Infer<T> =
 		? Readonly<Infer<X>>
 	: T extends _null
 		? null
+	: T extends _constant<infer V>
+		? V
 	: T extends _boolean
 		? boolean
 	: T extends _string<infer E>
@@ -100,6 +102,7 @@ export type Annotations<T> = {
 export type Type =
 	| _array<unknown>
 	| _boolean
+	| _constant<unknown>
 	| _enum<unknown>
 	| _integer
 	| _null
@@ -191,6 +194,33 @@ type _null = Annotations<null> & {
  */
 function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
+}
+
+/**
+ * A constant literal value.
+
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/const)
+ */
+type _constant<V> = Annotations<V> & {
+	const: V;
+};
+
+/**
+ * Define a constant to restrict a value to a single value.
+ *
+ * ```ts
+ * const country = t.constant('USA', {
+ *   description: 'We only ship to the United States.',
+ * });
+ * ```
+ */
+function _constant<
+	const V extends (boolean | null | number | string),
+>(
+	value: V,
+	options?: Omit<_constant<V>, 'const'>,
+): _constant<V> {
+	return { ...options, const: value };
 }
 
 /**
@@ -590,6 +620,7 @@ export {
 	_readonly as readonly,
 	// literals
 	_null as null,
+	_constant as constant,
 	_enum as enum,
 	// types
 	_array as array,

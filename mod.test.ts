@@ -41,6 +41,32 @@ describe('Null', () => {
 	});
 });
 
+describe('Constant', () => {
+	it('should be a function', () => {
+		assert(typeof t.constant === 'function');
+	});
+
+	// https://json-schema.org/understanding-json-schema/reference/const
+	it('should be JSON schema', () => {
+		assertEquals(t.constant('hello'), {
+			const: 'hello',
+		});
+	});
+
+	it('should allow annotations', () => {
+		let output = t.constant(123, {
+			deprecated: true,
+			description: 'hello',
+		});
+
+		assertEquals(output, {
+			const: 123,
+			deprecated: true,
+			description: 'hello',
+		});
+	});
+});
+
 describe('Boolean', () => {
 	it('should be a function', () => {
 		assert(typeof t.boolean === 'function');

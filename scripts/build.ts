@@ -82,7 +82,7 @@ let pkg = {
 	name: 'tschema',
 	version: version,
 	repository: 'lukeed/tschema',
-	description: 'A tiny (347b) utility to build JSON schema types.',
+	description: 'A tiny (359b) utility to build JSON schema types.',
 	module: 'index.mjs',
 	types: 'index.d.ts',
 	type: 'module',

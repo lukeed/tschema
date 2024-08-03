@@ -7,6 +7,43 @@ const NUMBER = 123;
 const STRING = 'foobar';
 
 // ---
+// NULL
+// ---
+
+let z1 = t.null();
+assert<t.null>(z1);
+assert<t.Infer<typeof z1>>(NULL);
+
+// ---
+// CONSTANT
+// ---
+
+let c1 = t.constant(NUMBER);
+type C1 = t.Infer<typeof c1>;
+assert<t.constant<typeof NUMBER>>(c1);
+assert<t.constant<123>>(c1);
+assert<C1>(NUMBER);
+
+// @ts-expect-error; wrong value
+assert<C1>(NUMBER + NUMBER);
+
+// @ts-expect-error; wrong type
+assert<C1>(STRING);
+
+// ---
+// BOOLEAN
+// ---
+
+let b1 = t.boolean();
+assert<t.boolean>(b1);
+assert<t.Infer<typeof b1>>(true);
+
+t.boolean({
+	// @ts-expect-error; wrong type
+	default: '123',
+});
+
+// ---
 // STRING / basic
 // ---
 
