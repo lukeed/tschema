@@ -1,5 +1,4 @@
 /**
- * JSON Schema builders and type definitions.
  * @module
  */
 
