@@ -32,7 +32,7 @@ type Prettify<T> =
 
 // deno-fmt-ignore
 /**
- * Infer the TypeScript type(s) information from a {@link Field} definition.
+ * Infer the TypeScript type(s) information from a {@link Type} definition.
  *
  * ```ts
  * let isPerson = t.object({
@@ -94,9 +94,10 @@ export type Annotations<T> = {
 /**
  * The possible `tschema` field value types.
  *
- * NOTE: Does not include modifiers (eg, `t.readonly`).
+ * > [!NOTE]
+ * > Does not include modifiers (eg, `t.readonly`).
  */
-export type Field =
+export type Type =
 	| _array<unknown>
 	| _boolean
 	| _enum<unknown>
@@ -113,7 +114,7 @@ const OPTIONAL: unique symbol = Symbol.for('optional');
  * @internal
  * Marks an object property as optional.
  */
-type _optional<T extends Field> = T & {
+type _optional<T extends Type> = T & {
 	[OPTIONAL]: true;
 };
 
@@ -124,7 +125,7 @@ type _optional<T extends Field> = T & {
  * > Only has an effect within {@link object} definitions.
  */
 function _optional<
-	F extends Field,
+	F extends Type,
 >(field: F): _optional<F> {
 	return {
 		...field,
@@ -136,7 +137,7 @@ function _optional<
  * @internal
  * Marks an {@link object}, {@link array}, or {@link tuple} field as readonly.
  */
-type _readonly<T extends Field> = T & {
+type _readonly<T extends Type> = T & {
 	readOnly: true;
 };
 
@@ -169,7 +170,7 @@ type _readonly<T extends Field> = T & {
  * //-> readonly string[]
  * ```
  */
-function _readonly<T extends Field>(field: T): _readonly<T> {
+function _readonly<T extends Type>(field: T): _readonly<T> {
 	return {
 		...field,
 		readOnly: true,
@@ -411,10 +412,10 @@ type _array<T> = Annotations<T[]> & {
 	minItems?: number;
 	maxItems?: number;
 	uniqueItems?: boolean;
-	contains?: Field;
+	contains?: Type;
 	minContains?: number;
 	maxContains?: number;
-	prefixItems?: Field[];
+	prefixItems?: Type[];
 };
 
 /**
@@ -431,7 +432,7 @@ type _array<T> = Annotations<T[]> & {
  * ```
  */
 function _array<
-	const I extends Field,
+	const I extends Type,
 	F extends _array<I>,
 >(
 	items?: I,
@@ -456,7 +457,7 @@ type _tuple<T> = Annotations<T> & {
 	minItems?: number;
 	maxItems?: number;
 	uniqueItems?: boolean;
-	contains?: Field;
+	contains?: Type;
 	minContains?: number;
 	maxContains?: number;
 };
@@ -478,7 +479,7 @@ type _tuple<T> = Annotations<T> & {
  * ```
  */
 function _tuple<
-	const M extends Field[],
+	const M extends Type[],
 >(
 	members?: M,
 	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
@@ -491,7 +492,7 @@ function _tuple<
 }
 
 type Properties = {
-	[name: string]: Field & {
+	[name: string]: Type & {
 		[OPTIONAL]?: true;
 	};
 };
@@ -507,8 +508,8 @@ type _object<T extends Properties> = Annotations<T> & {
 		[K in keyof T]: T[K];
 	};
 	required?: (keyof T)[];
-	patternProperties?: Field;
-	additionalProperties?: Field | boolean;
+	patternProperties?: Type;
+	additionalProperties?: Type | boolean;
 	propertyNames?: Partial<_string>;
 	minProperties?: number;
 	maxProperties?: number;

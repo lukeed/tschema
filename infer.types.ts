@@ -180,8 +180,8 @@ assert<
 
 assert<
 	t.object<{
-		name: t.Field;
-		age: t.Field;
+		name: t.Type;
+		age: t.Type;
 	}>
 >(o1);
 
