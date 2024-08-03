@@ -1,3 +1,8 @@
+/**
+ * JSON Schema builders and type definitions.
+ * @module
+ */
+
 type OmitNever<T> = {
 	[K in keyof T as T[K] extends never ? never : K]: T[K];
 };
@@ -103,20 +108,22 @@ export type Field =
 	| _string
 	| _tuple<unknown>;
 
-// MODIFIERS
-// ---
-
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
 /**
- * Mark a field as optional.
- *
- * NOTE: Only has an effect within {@link object} definitions.
+ * @internal
+ * Marks an object property as optional.
  */
 type _optional<T extends Field> = T & {
 	[OPTIONAL]: true;
 };
 
+/**
+ * Mark an object property field as optional.
+ *
+ * > [!NOTE]
+ * > Only has an effect within {@link object} definitions.
+ */
 function _optional<
 	F extends Field,
 >(field: F): _optional<F> {
@@ -125,6 +132,14 @@ function _optional<
 		[OPTIONAL]: true,
 	};
 }
+
+/**
+ * @internal
+ * Marks an {@link object}, {@link array}, or {@link tuple} field as readonly.
+ */
+type _readonly<T extends Field> = T & {
+	readOnly: true;
+};
 
 /**
  * Mark a field as readonly.
@@ -155,10 +170,6 @@ function _optional<
  * //-> readonly string[]
  * ```
  */
-type _readonly<T extends Field> = T & {
-	readOnly: true;
-};
-
 function _readonly<T extends Field>(field: T): _readonly<T> {
 	return {
 		...field,
@@ -166,31 +177,36 @@ function _readonly<T extends Field>(field: T): _readonly<T> {
 	};
 }
 
-// NULL
-// ---
-
 /**
- * Defines a `null` type.
+ * The `null` type.
  *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/null)
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/null)
  */
 type _null = Annotations<null> & {
 	type: 'null';
 };
 
+/**
+ * Defines a `null` type.
+ */
 function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
 }
 
-// ENUM
-// ---
+/**
+ * The `enum` type.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/enum)
+ */
+type _enum<T> = Annotations<T> & {
+	enum: T[];
+};
 
 /**
- * Defines an `enum` type which accepts a list of possible values.
+ * Defines an `enum` type to accept a list of possible values.
  *
- * Because no `type` attribute is defined, the enumerated values may include different data types.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/enum)
+ * > [!NOTE]
+ * > Because no `type` attribute is defined, the enumerated values may include different data types.
  *
  * ```ts
  * // Define possible literal values of different types:
@@ -202,10 +218,6 @@ function _null(options?: Omit<_null, 'type'>): _null {
  * });
  * ```
  */
-type _enum<T> = Annotations<T> & {
-	enum: T[];
-};
-
 function _enum<
 	const V extends (boolean | null | number | string),
 >(
@@ -218,53 +230,58 @@ function _enum<
 	};
 }
 
-// BOOLEAN
-// ---
-
 /**
- * Defines a `boolean` type.
+ * The `boolean` type.
  *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/boolean)
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/boolean)
  */
 type _boolean = Annotations<boolean> & {
 	type: 'boolean';
 };
 
+/**
+ * Defines a `boolean` type.
+ */
 function _boolean(options?: Omit<_boolean, 'type'>): _boolean {
 	return { ...options, type: 'boolean' };
 }
 
-// STRING
-// ---
-
 /**
- * https://json-schema.org/understanding-json-schema/reference/string#built-in-formats
+ * A `string` type.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/string)
  */
-type Format =
-	| 'date-time'
-	| 'time'
-	| 'date'
-	| 'duration'
-	| 'email'
-	| 'idn-email'
-	| 'hostname'
-	| 'idn-hostname'
-	| 'ipv4'
-	| 'ipv6'
-	| 'uuid'
-	| 'uri'
-	| 'uri-reference'
-	| 'iri'
-	| 'iri-reference'
-	| 'uri-template'
-	| 'json-pointer'
-	| 'relative-json-pointer'
-	| 'regex';
+type _string<E extends string = string> = Annotations<E> & {
+	type: 'string';
+	minLength?: number;
+	maxLength?: number;
+	pattern?: string;
+	enum?: E[];
+	/** https://json-schema.org/understanding-json-schema/reference/string#built-in-formats */
+	format?:
+		| 'date-time'
+		| 'time'
+		| 'date'
+		| 'duration'
+		| 'email'
+		| 'idn-email'
+		| 'hostname'
+		| 'idn-hostname'
+		| 'ipv4'
+		| 'ipv6'
+		| 'uuid'
+		| 'uri'
+		| 'uri-reference'
+		| 'iri'
+		| 'iri-reference'
+		| 'uri-template'
+		| 'json-pointer'
+		| 'relative-json-pointer'
+		| 'regex';
+};
 
 /**
  * Defines a `string` type.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/string)
  *
  * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
  *
@@ -278,15 +295,6 @@ type Format =
  * //-> "foo" | "bar"
  * ```
  */
-type _string<E extends string = string> = Annotations<E> & {
-	type: 'string';
-	minLength?: number;
-	maxLength?: number;
-	pattern?: string;
-	format?: Format;
-	enum?: E[];
-};
-
 function _string<
 	const V extends string,
 	F extends _string<V>,
@@ -302,15 +310,26 @@ function _string(
 	return { ...options, type: 'string' };
 }
 
-// NUMERIC
-// ---
+/**
+ * A `number` type.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#number)
+ */
+type _number<E extends number = number> = Annotations<E> & {
+	type: 'number';
+	enum?: E[];
+	multipleOf?: number;
+	minimum?: number;
+	exclusiveMinimum?: number;
+	maximum?: number;
+	exclusiveMaximum?: number;
+};
 
 /**
  * Defines a `number` type.
  *
- * NOTE: A {@link number} is used for integers **or** floating point numbers. See {@link integer} to exclude floats.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#number)
+ * > [!NOTE]
+ * > A {@link number} is used for integers **or** floating point numbers. See {@link integer} to exclude floats.
  *
  * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
  *
@@ -324,16 +343,6 @@ function _string(
  * //-> 0 | 1 | 12.8 | 101.3
  * ```
  */
-type _number<E extends number = number> = Annotations<E> & {
-	type: 'number';
-	enum?: E[];
-	multipleOf?: number;
-	minimum?: number;
-	exclusiveMinimum?: number;
-	maximum?: number;
-	exclusiveMaximum?: number;
-};
-
 function _number<
 	const V extends number,
 	F extends _number<V>,
@@ -350,11 +359,20 @@ function _number(
 }
 
 /**
+ * The `integer` type.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#integer)
+ */
+type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
+	type: 'integer';
+};
+
+/**
  * Defines an `integer` type.
  *
- * NOTE: An {@link integer} is used to **only** accept integer numbers. See {@link number} to accept any numeric.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#integer)
+ * > [!NOTE]
+ * > An {@link integer} is used to **only** accept integer numbers.
+ * > See {@link number} to accept any numeric.
  *
  * When `enum` attribute is defined, then {@link Infer} narrows this type to only those values.
  *
@@ -368,10 +386,6 @@ function _number(
  * //-> 0 | 1 | 2 | 3
  * ```
  */
-type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
-	type: 'integer';
-};
-
 function _integer<
 	const V extends number,
 	F extends _integer<V>,
@@ -387,22 +401,10 @@ function _integer(
 	return { ...options, type: 'integer' };
 }
 
-// LISTS
-// ---
-
 /**
- * Define an `array` type.
+ * The `array` type.
  *
- * NOTE: The {@link array} is used to define a sequence of arbitrary length where each item matches the same schema.
- * Consider {@link tuple} to define a sequence of fixed length where each item may have a different schema.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/array)
- *
- * ```ts
- * let hobbies = t.array(t.string());
- * type Hobbies = t.Infer<typeof hobbies>;
- * //-> string[]
- * ```
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/array)
  */
 type _array<T> = Annotations<T[]> & {
 	type: 'array';
@@ -416,6 +418,19 @@ type _array<T> = Annotations<T[]> & {
 	prefixItems?: Field[];
 };
 
+/**
+ * Define an `array` type.
+ *
+ * > [!NOTE]
+ * > The {@link array} is used to define a sequence of arbitrary length where each item matches the same schema.
+ * > Consider {@link tuple} to define a sequence of fixed length where each item may have a different schema.
+ *
+ * ```ts
+ * let hobbies = t.array(t.string());
+ * type Hobbies = t.Infer<typeof hobbies>;
+ * //-> string[]
+ * ```
+ */
 function _array<
 	const I extends Field,
 	F extends _array<I>,
@@ -431,21 +446,9 @@ function _array<
 }
 
 /**
- * Define a `tuple` type.
+ * The `tuple` type.
  *
- * NOTE: A {@link tuple} is used to define a sequence of fixed length where each item may have a different schema.
- * Consider {@link array} to define a sequence of arbitrary length where each item matches the same schema.
- *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/array#tupleValidation)
- *
- * ```ts
- * let item = t.tuple([
- *   t.integer(), // quantity
- *   t.string(), // item name
- * ]);
- * type InvoiceItem = t.Infer<typeof item>;
- * //-> [number, string]
- * ```
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/array#tupleValidation)
  */
 type _tuple<T> = Annotations<T> & {
 	type: 'array';
@@ -459,6 +462,22 @@ type _tuple<T> = Annotations<T> & {
 	maxContains?: number;
 };
 
+/**
+ * Define a `tuple` type.
+ *
+ * > [!NOTE]
+ * > A {@link tuple} is used to define a sequence of fixed length where each item may have a different schema.
+ * > Consider {@link array} to define a sequence of arbitrary length where each item matches the same schema.
+ *
+ * ```ts
+ * let item = t.tuple([
+ *   t.integer(), // quantity
+ *   t.string(), // item name
+ * ]);
+ * type InvoiceItem = t.Infer<typeof item>;
+ * //-> [number, string]
+ * ```
+ */
 function _tuple<
 	const M extends Field[],
 >(
@@ -472,9 +491,6 @@ function _tuple<
 	} as _tuple<M>;
 }
 
-// OBJECT
-// ---
-
 type Properties = {
 	[name: string]: Field & {
 		[OPTIONAL]?: true;
@@ -482,13 +498,30 @@ type Properties = {
 };
 
 /**
+ * The `object` type.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/object)
+ */
+type _object<T extends Properties> = Annotations<T> & {
+	type: 'object';
+	properties?: {
+		[K in keyof T]: T[K];
+	};
+	required?: (keyof T)[];
+	patternProperties?: Field;
+	additionalProperties?: Field | boolean;
+	propertyNames?: Partial<_string>;
+	minProperties?: number;
+	maxProperties?: number;
+};
+
+/**
  * Define an `object` type.
  *
- * @see [Reference](https://json-schema.org/understanding-json-schema/reference/object)
- *
- * NOTE: By default, all properties are marked as required.
- * Use {@link optional} to mark individual properties as optional, or supply
- * your own `required` attribute.
+ * > [!IMPORTANT]
+ * > By default, all properties are marked as required.
+ * > Use {@link optional} to mark individual properties as optional, or supply
+ * > your own `required` attribute.
  *
  * @example Basic Usage
  * ```ts
@@ -518,19 +551,6 @@ type Properties = {
  * });
  * ```
  */
-type _object<T extends Properties> = Annotations<T> & {
-	type: 'object';
-	properties?: {
-		[K in keyof T]: T[K];
-	};
-	required?: (keyof T)[];
-	patternProperties?: Field;
-	additionalProperties?: Field | boolean;
-	propertyNames?: Partial<_string>;
-	minProperties?: number;
-	maxProperties?: number;
-};
-
 function _object<
 	P extends Properties,
 	F extends _object<P>,

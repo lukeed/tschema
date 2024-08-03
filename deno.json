@@ -21,6 +21,7 @@
 	},
 	"exclude": [
 		"coverage",
+		"readme.md",
 		"npm"
 	]
 }
