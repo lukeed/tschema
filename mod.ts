@@ -1,34 +1,12 @@
 /**
  * @module
  */
-
-type OmitNever<T> = {
-	[K in keyof T as T[K] extends never ? never : K]: T[K];
-};
-
-// deno-fmt-ignore
-type __Optionals<T> = OmitNever<{
-	[K in keyof T]: T[K] extends _optional<infer X> ? Infer<X> : never;
-}>;
-
-type OptionalProperties<T, M = __Optionals<T>> = {
-	[K in keyof M]?: M[K];
-};
-
-type RequiredProperties<T> = {
-	[K in keyof T as T[K] extends _optional<infer _> ? never : K]: Infer<T[K]>;
-};
-
 type Prettify<T> =
 	& {
 		[K in keyof T]: Prettify<T[K]>;
 	}
 	// deno-lint-ignore ban-types
 	& {};
-
-// type InferProperties<T, M = RequiredProperties<T> & OptionalProperties<T>> = {
-// 	[K in keyof T]: M[K];
-// };
 
 // deno-fmt-ignore
 /**
@@ -57,32 +35,39 @@ export type Infer<T> =
 	: T extends _readonly<infer X> ? Readonly<Infer<X>>
 	: T extends _constant<infer V> ? V
 	: T extends _enum<infer E> ? E
-	: T extends _object<infer P>
-		? Prettify<
-				& RequiredProperties<P>
-				& OptionalProperties<P>
-			>
-	: T extends _tuple<infer I> ? Infer<I>
+	: T extends _tuple<infer I>  ? Infer<I>
 	: T extends _array<infer I> ? Infer<I>[]
-	: {
-			[K in keyof T]: Infer<T[K]>
-		};
+	// read out values
+	: T extends [infer A, ...infer B]
+		? [Infer<A>, ...Infer<B>]
+	: T extends Record<string, Type>
+		? { [K in keyof T]: Infer<T[K]> }
+	: T extends _object<infer P> ?
+		Prettify<
+			& { [K in keyof P as P[K] extends _optional<infer _> ? K : never]?: Infer<P[K]> }
+			& { [K in keyof P as P[K] extends _optional<infer _> ? never : K]: Infer<P[K]> }
+		>
+	: T;
 
 /**
  * Common annotation keywords assignable to any field schema.
  * @see https://json-schema.org/understanding-json-schema/reference/annotations
  */
-export type Annotations<T> = {
+export type Annotations = {
 	$schema?: string;
 	$id?: string;
 	title?: string;
 	description?: string;
-	examples?: Infer<T>[];
 	deprecated?: boolean;
 	readOnly?: boolean;
 	writeOnly?: boolean;
-	default?: Infer<T>;
 };
+
+/**
+ * @internal
+ * JSON literal value types
+ */
+type Value = string | number | boolean | null;
 
 /**
  * The possible `tschema` field value types.
@@ -93,8 +78,8 @@ export type Annotations<T> = {
 export type Type =
 	| _array<unknown>
 	| _boolean
-	| _constant<unknown>
-	| _enum<unknown>
+	| _constant<Value>
+	| _enum<Value>
 	| _integer
 	| _null
 	| _number
@@ -118,9 +103,7 @@ type _optional<T extends Type> = T & {
  * > [!NOTE]
  * > Only has an effect within {@link object} definitions.
  */
-function _optional<
-	F extends Type,
->(field: F): _optional<F> {
+function _optional<T extends Type>(field: T): _optional<T> {
 	return {
 		...field,
 		[OPTIONAL]: true,
@@ -176,8 +159,10 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/null)
  */
-type _null = Annotations<null> & {
+type _null = Annotations & {
 	type: 'null';
+	default?: null;
+	examples?: null[];
 };
 
 /**
@@ -192,8 +177,10 @@ function _null(options?: Omit<_null, 'type'>): _null {
 
  * [Reference](https://json-schema.org/understanding-json-schema/reference/const)
  */
-type _constant<V> = Annotations<V> & {
+type _constant<V extends Value> = Annotations & {
 	const: V;
+	default?: V;
+	examples?: V[];
 };
 
 /**
@@ -206,7 +193,7 @@ type _constant<V> = Annotations<V> & {
  * ```
  */
 function _constant<
-	const V extends (boolean | null | number | string),
+	const V extends Value,
 >(
 	value: V,
 	options?: Omit<_constant<V>, 'const'>,
@@ -219,8 +206,10 @@ function _constant<
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/enum)
  */
-type _enum<T> = Annotations<T> & {
-	enum: T[];
+type _enum<V extends Value> = Annotations & {
+	enum: V[];
+	default?: V;
+	examples?: V[];
 };
 
 /**
@@ -240,7 +229,7 @@ type _enum<T> = Annotations<T> & {
  * ```
  */
 function _enum<
-	const V extends (boolean | null | number | string),
+	const V extends Value,
 >(
 	choices: V[],
 	options?: Omit<_enum<V>, 'enum'>,
@@ -256,8 +245,10 @@ function _enum<
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/boolean)
  */
-type _boolean = Annotations<boolean> & {
+type _boolean = Annotations & {
 	type: 'boolean';
+	default?: boolean;
+	examples?: boolean[];
 };
 
 /**
@@ -272,12 +263,14 @@ function _boolean(options?: Omit<_boolean, 'type'>): _boolean {
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/string)
  */
-type _string<E extends string = string> = Annotations<E> & {
+type _string<E extends string = string> = Annotations & {
 	type: 'string';
 	minLength?: number;
 	maxLength?: number;
 	pattern?: string;
 	enum?: E[];
+	default?: E;
+	examples?: E[];
 	/** https://json-schema.org/understanding-json-schema/reference/string#built-in-formats */
 	format?:
 		| 'date-time'
@@ -336,7 +329,7 @@ function _string(
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/numeric#number)
  */
-type _number<E extends number = number> = Annotations<E> & {
+type _number<E extends number = number> = Annotations & {
 	type: 'number';
 	enum?: E[];
 	multipleOf?: number;
@@ -344,6 +337,8 @@ type _number<E extends number = number> = Annotations<E> & {
 	exclusiveMinimum?: number;
 	maximum?: number;
 	exclusiveMaximum?: number;
+	default?: E;
+	examples?: E[];
 };
 
 /**
@@ -427,7 +422,7 @@ function _integer(
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/array)
  */
-type _array<T> = Annotations<T[]> & {
+type _array<T> = Annotations & {
 	type: 'array';
 	items?: T;
 	minItems?: number;
@@ -437,6 +432,8 @@ type _array<T> = Annotations<T[]> & {
 	minContains?: number;
 	maxContains?: number;
 	prefixItems?: Type[];
+	default?: Infer<T>[];
+	examples?: Array<Infer<T>[]>;
 };
 
 /**
@@ -471,7 +468,7 @@ function _array<
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/array#tupleValidation)
  */
-type _tuple<T> = Annotations<T> & {
+type _tuple<T> = Annotations & {
 	type: 'array';
 	prefixItems?: T;
 	items?: false; // T[]
@@ -481,6 +478,8 @@ type _tuple<T> = Annotations<T> & {
 	contains?: Type;
 	minContains?: number;
 	maxContains?: number;
+	default?: Infer<T>;
+	examples?: Array<Infer<T>>;
 };
 
 /**
@@ -523,17 +522,17 @@ type Properties = {
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/object)
  */
-type _object<T extends Properties> = Annotations<T> & {
+type _object<T extends Properties> = Annotations & {
 	type: 'object';
-	properties?: {
-		[K in keyof T]: T[K];
-	};
+	properties?: T;
 	required?: (keyof T)[];
 	patternProperties?: Type;
 	additionalProperties?: Type | boolean;
 	propertyNames?: Partial<_string>;
 	minProperties?: number;
 	maxProperties?: number;
+	default?: Infer<T>;
+	examples?: Array<Infer<T>>;
 };
 
 /**
@@ -574,16 +573,16 @@ type _object<T extends Properties> = Annotations<T> & {
  */
 function _object<
 	P extends Properties,
-	F extends _object<P>,
+	T extends _object<P>,
 >(
 	properties?: P,
-	options?: Omit<F, 'type' | 'properties'>,
-): F {
+	options?: Omit<T, 'type' | 'properties'>,
+): T {
 	let o = {
 		...options,
 		type: 'object',
 		properties,
-	} as F;
+	} as T;
 
 	if (properties && !o.required) {
 		let k: keyof P;
