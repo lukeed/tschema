@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.1.12
 
       - name: gzip (bytes)
         run: |
@@ -80,11 +80,13 @@ jobs:
       - name: "Publish → npm"
         if: ${{ !contains(github.ref, '-next.') }}
         run: npm publish --provenance --access public
+        working-directory: ./npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: "Publish → npm (pre-release)"
         if: ${{ contains(github.ref, '-next.') }}
         run: npm publish --tag next --provenance --access public
+        working-directory: ./npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
