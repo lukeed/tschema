@@ -519,3 +519,101 @@ describe('Readonly', () => {
 		});
 	});
 });
+
+// ---
+
+describe('t.not', () => {
+	it('should be a function', () => {
+		assert(typeof t.not === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.not(
+			t.string(),
+		);
+
+		assertEquals(output, {
+			not: {
+				type: 'string',
+			},
+		});
+	});
+});
+
+describe('t.one', () => {
+	it('should be a function', () => {
+		assert(typeof t.one === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.one(
+			t.number({ multipleOf: 5 }),
+			t.number({ multipleOf: 3 }),
+		);
+
+		assertEquals(output, {
+			oneOf: [
+				{
+					type: 'number',
+					multipleOf: 5,
+				},
+				{
+					type: 'number',
+					multipleOf: 3,
+				},
+			],
+		});
+	});
+});
+
+describe('t.any', () => {
+	it('should be a function', () => {
+		assert(typeof t.any === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.any(
+			t.string({ maxLength: 5 }),
+			t.number({ minimum: 0 }),
+		);
+
+		assertEquals(output, {
+			anyOf: [
+				{
+					type: 'string',
+					maxLength: 5,
+				},
+				{
+					type: 'number',
+					minimum: 0,
+				},
+			],
+		});
+	});
+});
+
+describe('t.all', () => {
+	it('should be a function', () => {
+		assert(typeof t.all === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.all(
+			t.number({ maximum: 5 }),
+			t.number({ minimum: 0 }),
+		);
+
+		assertEquals(output, {
+			allOf: [
+				{
+					type: 'number',
+					maximum: 5,
+				},
+				{
+					type: 'number',
+					minimum: 0,
+				},
+			],
+		});
+	});
+});

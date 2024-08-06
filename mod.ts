@@ -37,6 +37,10 @@ export type Infer<T> =
 	: T extends _enum<infer E> ? E
 	: T extends _tuple<infer I>  ? Infer<I>
 	: T extends _array<infer I> ? Infer<I>[]
+	// compositions
+	: T extends _not<infer _> ? unknown
+	: T extends _any<infer A> | _one<infer A> ? Infer<A>
+	: T extends _all<infer A> ? Infer<A>
 	// read out values
 	: T extends [infer A, ...infer B]
 		? [Infer<A>, ...Infer<B>]
@@ -173,10 +177,10 @@ function _null(options?: Omit<_null, 'type'>): _null {
 }
 
 /**
- * A constant literal value.
+* A constant literal value.
 
- * [Reference](https://json-schema.org/understanding-json-schema/reference/const)
- */
+* [Reference](https://json-schema.org/understanding-json-schema/reference/const)
+*/
 type _constant<V extends Value> = Annotations & {
 	const: V;
 	default?: V;
@@ -603,8 +607,108 @@ function _object<
 	return o;
 }
 
+// compositions
+
+/**
+ * An `anyOf` (OR) composition.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/combining#anyOf)
+ */
+type _any<T> = {
+	anyOf: T[];
+};
+
+/**
+ * Defines an `anyOf` (OR) composition.
+ *
+ * Declares that the field may be valid against *any* of the subschemas.
+ *
+ * > [!IMPORTANT]
+ * > This is NOT the TypeScript `any` keyword!
+ *
+ * ```ts
+ * let _ = t.any(
+ *   t.string({ maxLength: 5 }),
+ *   t.number({ minimum: 0 }),
+ * );
+ * //-> PASS: `"short"` or `12`
+ * //-> FAIL: `"too long"` or `-5`
+ * ```
+ */
+function _any<T extends Type[]>(...anyOf: T): _any<T[number]> {
+	return { anyOf };
+}
+
+/**
+ * An `oneOf` (XOR) composition.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/combining#oneOf)
+ */
+type _one<T> = {
+	oneOf: T[];
+};
+
+/**
+ * Defines an `oneOf` composition.
+ *
+ * Declares that a field must be valid against *exactly one* of the subschemas.
+ *
+ * ```ts
+ * let _ = t.one(
+ *   t.number({ multipleOf: 5 }),
+ *   t.number({ multipleOf: 3 }),
+ * );
+ * //-> PASS: `10` or `9`
+ * //-> FAIL: `15` or `2`
+ * ```
+ */
+function _one<T extends Type[]>(...oneOf: T): _one<T[number]> {
+	return { oneOf };
+}
+
+/**
+ * A `not` composition.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/combining#not)
+ */
+type _not<T> = {
+	not: T;
+};
+
+/**
+ * Defines a `not` composition (NOT).
+ *
+ * Declares that a field must *not* be valid against the schema.
+ */
+function _not<T extends Type>(not: T): _not<T> {
+	return { not };
+}
+
+/**
+ * An `allOf` (AND) composition.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/reference/combining#allOf)
+ */
+type _all<T> = {
+	allOf: T[];
+};
+
+/**
+ * Defines an `allOf` composition (AND).
+ *
+ * Declares that a field must be valid against **all** of the subschemas.
+ */
+function _all<T extends Type>(...allOf: T[]): _all<T> {
+	return { allOf };
+}
+
 // deno-fmt-ignore
 export {
+	// composites
+	_all as all,
+	_any as any,
+	_one as one,
+	_not as not,
 	// modifiers
 	_optional as optional,
 	_readonly as readonly,

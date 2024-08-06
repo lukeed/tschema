@@ -1,6 +1,8 @@
 import { join, resolve } from 'jsr:@std/path@^1.0';
 import oxc from 'npm:oxc-transform@^0.23';
 
+const bytes = 408;
+
 const version = Deno.args[0];
 console.log('? version:', version);
 
@@ -82,7 +84,7 @@ let pkg = {
 	name: 'tschema',
 	version: version,
 	repository: 'lukeed/tschema',
-	description: 'A tiny (359b) utility to build JSON schema types.',
+	description: `A tiny (${bytes}b) utility to build JSON schema types.`,
 	module: 'index.mjs',
 	types: 'index.d.ts',
 	type: 'module',
