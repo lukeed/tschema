@@ -19,8 +19,6 @@ assert<t.Infer<typeof z1>>(NULL);
 // ---
 
 let c1 = t.constant(NUMBER);
-// @ts-ignore;
-// > Type instantiation is excessively deep and possibly infinite
 type C1 = t.Infer<typeof c1>;
 assert<t.constant<typeof NUMBER>>(c1);
 assert<t.constant<123>>(c1);
