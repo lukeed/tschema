@@ -89,7 +89,11 @@ export type Type =
 	| _number
 	| _object<Properties>
 	| _string
-	| _tuple<unknown>;
+	| _tuple<unknown>
+	| _all<unknown>
+	| _any<unknown>
+	| _one<unknown>
+	| _not<unknown>;
 
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
