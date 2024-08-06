@@ -119,6 +119,23 @@ always kept up-to-date.
 
 > **Note:** The API is the same across all JavaScript runtimes, regardless of [installation](#install) source. Only the package's name changes.
 
+## Benchmarks
+
+> Run on Deno 1.45.5 `(release, aarch64-apple-darwin)` with v8 `12.7.224.13`
+
+```
+file: tschema/scripts/bench.ts
+runtime: deno 1.45.5 (aarch64-apple-darwin)
+
+# Builders
+  tschema              5,273,942.5 iter/sec     189.61 ns/iter
+  sinclair/typebox       130,548.3 iter/sec       7.66 µs/iter
+
+# Summary
+  tschema
+   40.4x faster than sinclair/typebox
+```
+
 ## License
 
 MIT © [Luke Edwards](https://lukeed.com)

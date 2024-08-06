@@ -7,6 +7,7 @@
       "jsr:@std/internal@^1.0.1": "jsr:@std/internal@1.0.1",
       "jsr:@std/path@^1.0": "jsr:@std/path@1.0.2",
       "jsr:@std/testing": "jsr:@std/testing@0.225.3",
+      "npm:@sinclair/typebox": "npm:@sinclair/typebox@0.32.35",
       "npm:oxc-transform@^0.23": "npm:oxc-transform@0.23.0"
     },
     "jsr": {
@@ -57,6 +58,10 @@
       },
       "@oxc-transform/binding-win32-x64-msvc@0.23.0": {
         "integrity": "sha512-lkUSMK4fpUzbQ1RV2kBOSlQ2QItEbHWGzRMwUgBgWS3IyupzorOKY6G1YVQ9VvwkGDw+G/7LADRc3Yvs4Z5xFg==",
+        "dependencies": {}
+      },
+      "@sinclair/typebox@0.32.35": {
+        "integrity": "sha512-Ul3YyOTU++to8cgNkttakC0dWvpERr6RYoHO2W47DLbFvrwBDJUY31B1sImH6JZSYc4Kt4PyHtoPNu+vL2r2dA==",
         "dependencies": {}
       },
       "oxc-transform@0.23.0": {
