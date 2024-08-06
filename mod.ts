@@ -50,29 +50,20 @@ type Prettify<T> =
  * ```
  */
 export type Infer<T> =
-	T extends _readonly<infer X>
-		? Readonly<Infer<X>>
-	: T extends _null
-		? null
-	: T extends _constant<infer V>
-		? V
-	: T extends _boolean
-		? boolean
-	: T extends _string<infer E>
-		? E
-	: T extends _number<infer E> | _integer<infer E>
-		? E
+	T extends _null ? null
+	: T extends _boolean ? boolean
+	: T extends _string<infer E> ? E
+	: T extends _number<infer E> | _integer<infer E> ? E
+	: T extends _readonly<infer X> ? Readonly<Infer<X>>
+	: T extends _constant<infer V> ? V
+	: T extends _enum<infer E> ? E
 	: T extends _object<infer P>
 		? Prettify<
 				& RequiredProperties<P>
 				& OptionalProperties<P>
 			>
-	: T extends _tuple<infer I>
-		? Infer<I>
-	: T extends _array<infer I>
-		? Infer<I>[]
-	: T extends _enum<infer E>
-		? E
+	: T extends _tuple<infer I> ? Infer<I>
+	: T extends _array<infer I> ? Infer<I>[]
 	: {
 			[K in keyof T]: Infer<T[K]>
 		};
