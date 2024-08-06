@@ -623,3 +623,35 @@ assert<[string, boolean]>(T2);
 
 // @ts-expect-error; STRING is not in ENUM
 assert<typeof T2>([STRING, true]);
+
+// ---
+// COMPOSITIONS
+// ---
+
+let not1 = t.not(t.string());
+type NOT1 = t.Infer<typeof not1>;
+declare let NOT1: NOT1;
+assert<unknown>(NOT1);
+
+let any1 = t.any(t.string(), t.number());
+type ANY1 = t.Infer<typeof any1>;
+declare let ANY1: ANY1;
+assert<string | number>(ANY1);
+assert<ANY1>(STRING);
+assert<ANY1>(NUMBER);
+
+// @ts-expect-error; must all be string
+let all1 = t.all(t.string(), t.number());
+type ALL1 = t.Infer<typeof all1>;
+declare let ALL1: ALL1;
+assert<string>(ALL1);
+assert<ALL1>(STRING);
+
+let one1 = t.one(t.string(), t.number(), t.boolean());
+type ONE1 = t.Infer<typeof one1>;
+declare let ONE1: ONE1;
+assert<string | number | boolean>(ONE1);
+assert<ONE1>(STRING);
+assert<ONE1>(NUMBER);
+assert<ONE1>(false);
+assert<ONE1>(true);
