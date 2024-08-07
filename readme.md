@@ -41,7 +41,7 @@ let User = t.object({
     description: 'unix seconds',
   }),
 }, {
-  additionalProperties: false,
+  description: 'a User record',
 });
 
 // Infer its TypeScript definition:
@@ -60,6 +60,7 @@ type User = t.Infer<typeof User>;
 console.log(User);
 //-> {
 //->   type: "object",
+//->   description: "a User record",
 //->   additionalProperties: false,
 //->   properties: {
 //->     uid: {
@@ -81,24 +82,26 @@ console.log(User);
 //->       type: "array",
 //->       prefixItems: [{
 //->         type: "number",
-//->         minimum: 0,
+//->         minimum: 0
 //->       }, {
 //->         enum: ["novice", "pro", "expert", "master"]
-//->       }]
+//->       }],
+//->       minItems: 2,
+//->       maxItems: 2
 //->     },
 //->     interests: {
 //->       type: "array",
 //->       items: {
 //->         type: "string",
 //->         minLength: 4,
-//->         maxLength: 36,
+//->         maxLength: 36
 //->       }
 //->     },
 //->     last_updated: {
 //->       type: "integer",
 //->       minimum: 0,
 //->       examples: [1722642982],
-//->       description: "unix seconds",
+//->       description: "unix seconds"
 //->     }
 //->   },
 //->   required: [
