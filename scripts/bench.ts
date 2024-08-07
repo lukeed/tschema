@@ -2,6 +2,7 @@ import * as t from '../mod.ts';
 import { Type } from 'npm:@sinclair/typebox';
 import { zodToJsonSchema } from 'npm:zod-to-json-schema';
 import { z } from 'npm:zod';
+import * as v from 'npm:valibot'
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -95,4 +96,23 @@ Deno.bench('zod-to-json-schema', { group: 'builder' }, () => {
 	});
 
 	let _ = zodToJsonSchema(zod);
+});
+
+Deno.bench('valibot', { group: 'builder' }, () => {
+	v.object({
+		uid: v.pipe(v.number(), v.integer()),
+		name: v.string('full name'),
+		isActive: v.boolean(),
+		avatar: v.optional(
+			v.pipe(v.string(), v.url()),
+		),
+		achievements: v.tuple([
+			v.pipe(v.number(), v.minValue(0)), // points
+			v.picklist(['novice', 'pro', 'expert', 'master'] as const),
+		]),
+		interests: v.array(
+			v.pipe(v.string(), v.minLength(4), v.maxLength(36)),
+		),
+		last_updated: v.pipe(v.number('unix seconds'), v.integer(), v.minValue(0)),
+	})
 });
