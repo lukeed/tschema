@@ -6,6 +6,7 @@ import * as v from 'npm:valibot';
 import { Ajv } from 'npm:ajv';
 import { Validator } from 'npm:jsonschema';
 import joi from 'npm:joi';
+import yup from 'npm:yup';
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -203,6 +204,33 @@ Deno.bench('joi', { group: 'builder' }, () => {
 			joi.number().min(0),
 		),
 		interests: joi.array().items(joi.string().min(4).max(32).alphanum()),
+	});
+	schema.validate({
+		uid: 64298,
+		name: 'lukeed',
+		isActive: true,
+		avatar: 'https://example.com/lukeed.png',
+		achievements: 'pro',
+		interests: ['painting', 'playing games'],
+		last_updated: 1722642982,
+	});
+});
+
+Deno.bench('yup', { group: 'builder' }, () => {
+	let schema = yup.object({
+		uid: yup.number().integer(),
+		name: yup.string(),
+		isActive: yup.boolean(),
+		avatar: yup.string().url().optional(),
+		achievements: yup.mixed().oneOf([
+			'novice',
+			'pro',
+			'expert',
+			'master',
+			yup.number().min(0),
+		]),
+		interests: yup.array(yup.string().min(4).max(32)),
+		last_updated: yup.number().integer().min(0),
 	});
 	schema.validate({
 		uid: 64298,

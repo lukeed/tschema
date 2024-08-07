@@ -13,6 +13,7 @@
       "npm:jsonschema": "npm:jsonschema@1.4.1",
       "npm:oxc-transform@^0.23": "npm:oxc-transform@0.23.0",
       "npm:valibot": "npm:valibot@0.37.0",
+      "npm:yup": "npm:yup@1.4.0",
       "npm:zod": "npm:zod@3.23.8",
       "npm:zod-to-json-schema": "npm:zod-to-json-schema@3.23.0_zod@3.23.8"
     },
@@ -142,13 +143,38 @@
           "@oxc-transform/binding-win32-x64-msvc": "@oxc-transform/binding-win32-x64-msvc@0.23.0"
         }
       },
+      "property-expr@2.0.6": {
+        "integrity": "sha512-SVtmxhRE/CGkn3eZY1T6pC8Nln6Fr/lu1mKSgRud0eC73whjGfoAogbn78LkD8aFL0zz3bAFerKSnOl7NlErBA==",
+        "dependencies": {}
+      },
       "require-from-string@2.0.2": {
         "integrity": "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==",
+        "dependencies": {}
+      },
+      "tiny-case@1.0.3": {
+        "integrity": "sha512-Eet/eeMhkO6TX8mnUteS9zgPbUMQa4I6Kkp5ORiBD5476/m+PIRiumP5tmh5ioJpH7k51Kehawy2UDfsnxxY8Q==",
+        "dependencies": {}
+      },
+      "toposort@2.0.2": {
+        "integrity": "sha512-0a5EOkAUp8D4moMi2W8ZF8jcga7BgZd91O/yabJCFY8az+XSzeGyTKs0Aoo897iV1Nj6guFq8orWDS96z91oGg==",
+        "dependencies": {}
+      },
+      "type-fest@2.19.0": {
+        "integrity": "sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==",
         "dependencies": {}
       },
       "valibot@0.37.0": {
         "integrity": "sha512-FQz52I8RXgFgOHym3XHYSREbNtkgSjF9prvMFH1nBsRyfL6SfCzoT1GuSDTlbsuPubM7/6Kbw0ZMQb8A+V+VsQ==",
         "dependencies": {}
+      },
+      "yup@1.4.0": {
+        "integrity": "sha512-wPbgkJRCqIf+OHyiTBQoJiP5PFuAXaWiJK6AmYkzQAh5/c2K9hzSApBZG5wV9KoKSePF7sAxmNSvh/13YHkFDg==",
+        "dependencies": {
+          "property-expr": "property-expr@2.0.6",
+          "tiny-case": "tiny-case@1.0.3",
+          "toposort": "toposort@2.0.2",
+          "type-fest": "type-fest@2.19.0"
+        }
       },
       "zod-to-json-schema@3.23.0_zod@3.23.8": {
         "integrity": "sha512-az0uJ243PxsRIa2x1WmNE/pnuA05gUq/JB8Lwe1EDCCL/Fz9MgjYQ0fPlyc2Tcv6aF2ZA7WM5TWaRZVEFaAIag==",
