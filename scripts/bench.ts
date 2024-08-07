@@ -1,5 +1,7 @@
 import * as t from '../mod.ts';
 import { Type } from 'npm:@sinclair/typebox';
+import { zodToJsonSchema } from 'npm:zod-to-json-schema';
+import { z } from 'npm:zod';
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -68,4 +70,29 @@ Deno.bench('sinclair/typebox', { group: 'builder' }, () => {
 			description: 'unix seconds',
 		}),
 	});
+});
+
+Deno.bench('zod-to-json-schema', { group: 'builder' }, () => {
+	let zod = z.object({
+		uid: z.number().int(),
+		name: z.string({
+			description: 'full name',
+		}),
+		isActive: z.boolean(),
+		avatar: z.optional(
+			z.string().url(),
+		),
+		achievements: z.tuple([
+			z.number().min(0), // points
+			z.enum(['novice', 'pro', 'expert', 'master']),
+		]),
+		interests: z.array(
+			z.string().min(4).max(36),
+		),
+		last_updated: z.number({
+			description: 'unix seconds',
+		}).int().min(0),
+	});
+
+	let _ = zodToJsonSchema(zod);
 });

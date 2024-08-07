@@ -8,7 +8,9 @@
       "jsr:@std/path@^1.0": "jsr:@std/path@1.0.2",
       "jsr:@std/testing": "jsr:@std/testing@0.225.3",
       "npm:@sinclair/typebox": "npm:@sinclair/typebox@0.32.35",
-      "npm:oxc-transform@^0.23": "npm:oxc-transform@0.23.0"
+      "npm:oxc-transform@^0.23": "npm:oxc-transform@0.23.0",
+      "npm:zod": "npm:zod@3.23.8",
+      "npm:zod-to-json-schema": "npm:zod-to-json-schema@3.23.0_zod@3.23.8"
     },
     "jsr": {
       "@std/assert@1.0.1": {
@@ -76,6 +78,16 @@
           "@oxc-transform/binding-win32-arm64-msvc": "@oxc-transform/binding-win32-arm64-msvc@0.23.0",
           "@oxc-transform/binding-win32-x64-msvc": "@oxc-transform/binding-win32-x64-msvc@0.23.0"
         }
+      },
+      "zod-to-json-schema@3.23.0_zod@3.23.8": {
+        "integrity": "sha512-az0uJ243PxsRIa2x1WmNE/pnuA05gUq/JB8Lwe1EDCCL/Fz9MgjYQ0fPlyc2Tcv6aF2ZA7WM5TWaRZVEFaAIag==",
+        "dependencies": {
+          "zod": "zod@3.23.8"
+        }
+      },
+      "zod@3.23.8": {
+        "integrity": "sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==",
+        "dependencies": {}
       }
     }
   },

@@ -128,12 +128,14 @@ file: tschema/scripts/bench.ts
 runtime: deno 1.45.5 (aarch64-apple-darwin)
 
 # Builders
-  tschema              5,273,942.5 iter/sec     189.61 ns/iter
-  sinclair/typebox       130,548.3 iter/sec       7.66 µs/iter
+  tschema              5,328,603.3 iter/sec     187.67 ns/iter
+  sinclair/typebox       130,480.2 iter/sec       7.66 µs/iter
+  zod-to-json-schema      46,928.5 iter/sec      21.31 µs/iter
 
 # Summary
   tschema
-   40.4x faster than sinclair/typebox
+    40.84x faster than sinclair/typebox
+   113.55x faster than zod-to-json-schema
 ```
 
 ## License
