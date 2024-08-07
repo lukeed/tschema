@@ -5,6 +5,7 @@ import { z } from 'npm:zod';
 import * as v from 'npm:valibot';
 import { Ajv } from 'npm:ajv';
 import { Validator } from 'npm:jsonschema';
+import joi from 'npm:joi';
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -188,5 +189,28 @@ Deno.bench('jsonschema', { group: 'builder' }, () => {
 				description: 'unix seconds',
 			},
 		},
+	});
+});
+
+Deno.bench('joi', { group: 'builder' }, () => {
+	let schema = joi.object({
+		uid: joi.number().integer(),
+		name: joi.string().description('full name').example('Alex Johnson'),
+		isActive: joi.boolean(),
+		avatar: joi.string().uri().optional(),
+		achievements: joi.alternatives().try(
+			joi.string().valid('novice', 'pro', 'expert', 'master'),
+			joi.number().min(0),
+		),
+		interests: joi.array().items(joi.string().min(4).max(32).alphanum()),
+	});
+	schema.validate({
+		uid: 64298,
+		name: 'lukeed',
+		isActive: true,
+		avatar: 'https://example.com/lukeed.png',
+		achievements: 'pro',
+		interests: ['painting', 'playing games'],
+		last_updated: 1722642982,
 	});
 });
