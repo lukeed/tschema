@@ -417,13 +417,59 @@ describe('Object', () => {
 		});
 	});
 
+	describe('additionalProperties', () => {
+		it('should NOT be added for object w/o properties', () => {
+			let output = t.object();
+
+			assertEquals(output, {
+				type: 'object',
+				properties: undefined,
+			});
+		});
+
+		it('should be added for object w/ defined properties', () => {
+			let output = t.object({
+				name: t.string(),
+			});
+
+			assertEquals(output, {
+				type: 'object',
+				additionalProperties: false, // <<
+				required: ['name'],
+				properties: {
+					name: {
+						type: 'string',
+					},
+				},
+			});
+		});
+
+		it('should allow override via options', () => {
+			let output = t.object({
+				name: t.string(),
+			}, {
+				additionalProperties: true,
+			});
+
+			assertEquals(output, {
+				type: 'object',
+				additionalProperties: true, // <<
+				required: ['name'],
+				properties: {
+					name: {
+						type: 'string',
+					},
+				},
+			});
+		});
+	});
+
 	it('should build "properties" property', () => {
 		let output = t.object({
 			name: t.string(),
 			age: t.integer(),
 		}, {
 			description: 'person',
-			additionalProperties: false,
 			examples: [{
 				name: 'lukeed',
 				age: 123,
@@ -464,6 +510,7 @@ describe('Object', () => {
 
 		assertEquals(output, {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				name: { type: 'string' },
 				age: { type: 'integer' },
@@ -477,11 +524,6 @@ describe('Object', () => {
 			name: t.string(),
 			age: t.optional(t.integer()),
 		});
-		// TODO: Make ^ this:
-		//   t.Object<{
-		//     name: t.String<string>;
-		//     age?: t.Integer<number>;
-		//   }>
 
 		// NOTE: age has OPTIONAL symbol
 		// This is dropped natively in JSON
@@ -491,12 +533,18 @@ describe('Object', () => {
 
 		assertEquals(copy, {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				name: { type: 'string' },
 				age: { type: 'integer' },
 			},
 			required: ['name'], // <<
 		});
+	});
+
+	it('should default "additionalProperties" to false', () => {
+		let output = t.object();
+		type X = t.Infer<typeof output>;
 	});
 });
 

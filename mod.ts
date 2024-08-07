@@ -551,6 +551,14 @@ type _object<T extends Properties> = Annotations & {
  * > Use {@link optional} to mark individual properties as optional, or supply
  * > your own `required` attribute.
  *
+ * > [!IMPORTANT]
+ * > By default, `additionalProperties: false` is added when `properties` are defined.
+ * > This restricts the object's definition to **only** accept the property fields you've defined.
+ * > Otherwise, when no `properties` are defined — for example, `t.object()` — then
+ * > `additionalProperties: false` **is not** added, which allows for extra
+ * > properties. You may explicitly control this setting via
+ * > `options.additionalProperties` at any time.
+ *
  * @example Basic Usage
  * ```ts
  * let pet = t.object({
@@ -573,11 +581,47 @@ type _object<T extends Properties> = Annotations & {
  *   name: t.string(),
  *   age: t.integer(),
  * }, {
- *   additionalProperties: false,
  *   description: 'the Pet schema',
  *   // ...
  * });
  * ```
+ *
+ * @example Additional Properties
+ * ```ts
+ * // Accept any object
+ * // AKA: any object w/ any properties
+ * let a = t.object();
+ * //-> { type: "object" }
+ *
+ * // Accept a specific object
+ * // AKA: only specified properites
+ * let b = t.object({
+ *   name: t.string(),
+ * });
+ * //-> {
+ * //->   type: "object",
+ * //->   additionalProperties: false,
+ * //->   required: ["name"],
+ * //->   properties: {
+ * //->     name: { type: "string" }
+ * //->   }
+ * //-> }
+ *
+ * // Accept a specific object
+ * // ... but allow extra properties
+ * let c = t.object({
+ *   name: t.string(),
+ * }, {
+ *   additionalProperties: true,
+ * });
+ * //-> {
+ * //->   type: "object",
+ * //->   additionalProperties: true,
+ * //->   required: ["name"],
+ * //->   properties: {
+ * //->     name: { type: "string" }
+ * //->   }
+ * //-> }
  */
 function _object<
 	P extends Properties,
@@ -592,19 +636,23 @@ function _object<
 		properties,
 	} as T;
 
-	if (properties && !o.required) {
-		let k: keyof P;
-		let arr: (keyof P)[] = [];
-		for (k in properties) {
-			if (properties[k][OPTIONAL]) {
-				// NOTE: delete = deopt
-				properties[k][OPTIONAL] = undefined;
-			} else {
-				arr.push(k);
+	if (properties) {
+		o.additionalProperties ||= false;
+
+		if (!o.required) {
+			let k: keyof P;
+			let arr: (keyof P)[] = [];
+			for (k in properties) {
+				if (properties[k][OPTIONAL]) {
+					// NOTE: delete = deopt
+					properties[k][OPTIONAL] = undefined;
+				} else {
+					arr.push(k);
+				}
 			}
-		}
-		if (arr.length > 0) {
-			o.required = arr;
+			if (arr.length > 0) {
+				o.required = arr;
+			}
 		}
 	}
 
