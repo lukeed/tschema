@@ -1,7 +1,7 @@
 import { join, resolve } from 'jsr:@std/path@^1.0';
 import oxc from 'npm:oxc-transform@^0.23';
 
-const bytes = 425;
+const bytes = 444;
 
 const version = Deno.args[0];
 console.log('? version:', version);

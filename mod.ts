@@ -479,7 +479,7 @@ function _array<
 type _tuple<T> = Annotations & {
 	type: 'array';
 	prefixItems?: T;
-	items?: false; // T[]
+	additionalItems?: Type;
 	minItems?: number;
 	maxItems?: number;
 	uniqueItems?: boolean;
@@ -512,7 +512,10 @@ function _tuple<
 	members?: M,
 	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
 ): _tuple<M> {
+	let len = members ? members.length : 0;
 	return {
+		maxItems: len,
+		minItems: len,
 		...options,
 		type: 'array',
 		prefixItems: members,

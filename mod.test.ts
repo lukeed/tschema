@@ -352,6 +352,8 @@ describe('Tuple', () => {
 		assertEquals(t.tuple(), {
 			type: 'array',
 			prefixItems: undefined,
+			minItems: 0,
+			maxItems: 0,
 		});
 	});
 
@@ -359,6 +361,8 @@ describe('Tuple', () => {
 		let output = t.tuple([], {
 			deprecated: true,
 			description: 'hello',
+			minItems: 0,
+			maxItems: 0,
 		});
 
 		assertEquals(output, {
@@ -366,6 +370,8 @@ describe('Tuple', () => {
 			prefixItems: [],
 			description: 'hello',
 			deprecated: true,
+			minItems: 0,
+			maxItems: 0,
 		});
 	});
 
@@ -386,6 +392,29 @@ describe('Tuple', () => {
 				{ type: 'string' },
 				{ type: 'boolean' },
 			],
+			minItems: 2,
+			maxItems: 2,
+		});
+	});
+
+	it('should allow `minItems` and `maxItems` override', () => {
+		let output = t.tuple([t.string(), t.boolean()], {
+			minItems: 1,
+			maxItems: 5,
+			additionalItems: t.number(),
+		});
+
+		assertEquals(output, {
+			type: 'array',
+			prefixItems: [
+				{ type: 'string' },
+				{ type: 'boolean' },
+			],
+			minItems: 1,
+			maxItems: 5,
+			additionalItems: {
+				type: 'number',
+			},
 		});
 	});
 });
