@@ -103,7 +103,7 @@ Deno.bench('zod-to-json-schema', { group: 'builder' }, () => {
 });
 
 Deno.bench('valibot', { group: 'builder' }, () => {
-	v.object({
+	let _ = v.object({
 		uid: v.pipe(v.number(), v.integer()),
 		name: v.string('full name'),
 		isActive: v.boolean(),
@@ -122,8 +122,7 @@ Deno.bench('valibot', { group: 'builder' }, () => {
 });
 
 Deno.bench('ajv', { group: 'builder' }, () => {
-	let ajv = new Ajv({ formats: { uri: true } });
-	ajv.compile({
+	let _ = new Ajv({ formats: { uri: true } }).compile({
 		type: 'object',
 		properties: {
 			uid: { type: 'integer' },
@@ -155,8 +154,7 @@ Deno.bench('ajv', { group: 'builder' }, () => {
 });
 
 Deno.bench('jsonschema', { group: 'builder' }, () => {
-	let v = new Validator();
-	v.validate({
+	let _ = new Validator().validate({
 		uid: 64298,
 		name: 'lukeed',
 		isActive: true,
@@ -194,7 +192,7 @@ Deno.bench('jsonschema', { group: 'builder' }, () => {
 });
 
 Deno.bench('joi', { group: 'builder' }, () => {
-	let schema = joi.object({
+	let _ = joi.object({
 		uid: joi.number().integer(),
 		name: joi.string().description('full name').example('Alex Johnson'),
 		isActive: joi.boolean(),
@@ -204,8 +202,8 @@ Deno.bench('joi', { group: 'builder' }, () => {
 			joi.number().min(0),
 		),
 		interests: joi.array().items(joi.string().min(4).max(32).alphanum()),
-	});
-	schema.validate({
+		last_updated: joi.number().integer().min(0).description('unix seconds'),
+	}).validate({
 		uid: 64298,
 		name: 'lukeed',
 		isActive: true,
@@ -217,7 +215,7 @@ Deno.bench('joi', { group: 'builder' }, () => {
 });
 
 Deno.bench('yup', { group: 'builder' }, () => {
-	let schema = yup.object({
+	let _ = yup.object({
 		uid: yup.number().integer(),
 		name: yup.string(),
 		isActive: yup.boolean(),
@@ -231,8 +229,7 @@ Deno.bench('yup', { group: 'builder' }, () => {
 		]),
 		interests: yup.array(yup.string().min(4).max(32)),
 		last_updated: yup.number().integer().min(0),
-	});
-	schema.validate({
+	}).validate({
 		uid: 64298,
 		name: 'lukeed',
 		isActive: true,
