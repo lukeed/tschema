@@ -4,6 +4,7 @@ import { zodToJsonSchema } from 'npm:zod-to-json-schema';
 import { z } from 'npm:zod';
 import * as v from 'npm:valibot';
 import { Ajv } from 'npm:ajv';
+import { Validator } from 'npm:jsonschema';
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -119,7 +120,7 @@ Deno.bench('valibot', { group: 'builder' }, () => {
 });
 
 Deno.bench('ajv', { group: 'builder' }, () => {
-	const ajv = new Ajv({ formats: { uri: true } });
+	let ajv = new Ajv({ formats: { uri: true } });
 	ajv.compile({
 		type: 'object',
 		properties: {
@@ -148,6 +149,44 @@ Deno.bench('ajv', { group: 'builder' }, () => {
 				description: 'unix seconds',
 			},
 		},
-		additionalProperties: false,
+	});
+});
+
+Deno.bench('jsonschema', { group: 'builder' }, () => {
+	let v = new Validator();
+	v.validate({
+		uid: 64298,
+		name: 'lukeed',
+		isActive: true,
+		avatar: 'https://example.com/lukeed.png',
+		achievements: 'pro',
+		interests: ['painting', 'playing games'],
+		last_updated: 1722642982,
+	}, {
+		type: 'object',
+		properties: {
+			uid: { type: 'integer' },
+			name: {
+				type: 'string',
+				description: 'full name',
+			},
+			isActive: { type: 'boolean' },
+			avatar: { type: 'string', format: 'uri' },
+			achievements: {
+				anyOf: [{ type: 'string', enum: ['novice', 'pro', 'expert', 'master'] }, {
+					type: 'number',
+					minimum: 0,
+				}],
+			},
+			interests: {
+				type: 'array',
+				items: { type: 'string', minLength: 4, maxLength: 36 },
+			},
+			last_updated: {
+				type: 'integer',
+				minimum: 0,
+				description: 'unix seconds',
+			},
+		},
 	});
 });
