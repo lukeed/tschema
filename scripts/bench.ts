@@ -3,6 +3,7 @@ import { Type } from 'npm:@sinclair/typebox';
 import { zodToJsonSchema } from 'npm:zod-to-json-schema';
 import { z } from 'npm:zod';
 import * as v from 'npm:valibot'
+import { Ajv } from "npm:ajv";
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({
@@ -116,3 +117,37 @@ Deno.bench('valibot', { group: 'builder' }, () => {
 		last_updated: v.pipe(v.number('unix seconds'), v.integer(), v.minValue(0)),
 	})
 });
+
+Deno.bench('ajv', { group: 'builder' }, () => {
+	const ajv = new Ajv({ formats: { uri: true } });
+	ajv.compile({
+		type: "object",
+		properties: {
+			uid: { type: "integer" },
+			name: {
+			type: "string",
+			description: "full name",
+			examples: ["Alex Johnson"],
+			},
+			isActive: { type: "boolean" },
+			avatar: { type: "string", format: "uri" },
+			achievements: {
+			anyOf: [{ type: "string", enum: ["novice", "pro", "expert", "master"] }, {
+				type: "number",
+				minimum: 0,
+			}],
+			},
+			interests: {
+			type: "array",
+			items: { type: "string", minLength: 4, maxLength: 36 },
+			},
+			last_updated: {
+			type: "integer",
+			minimum: 0,
+			examples: [1722642982],
+			description: "unix seconds",
+			},
+		},
+		additionalProperties: false,
+	})
+})
