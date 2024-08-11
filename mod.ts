@@ -87,7 +87,7 @@ export type Type =
 	| _integer
 	| _null
 	| _number
-	| _object<Properties>
+	| _object
 	| _string
 	| _tuple<unknown>
 	| _all<unknown>
@@ -522,6 +522,12 @@ function _tuple<
 	} as _tuple<M>;
 }
 
+/**
+ * The {@link _object} property definitions.
+ *
+ * > [!NOTE]
+ * > You probably don't want this type, unless you are extending/building your own types.
+ */
 type Properties = {
 	[name: string]: Type & {
 		[OPTIONAL]?: true;
@@ -533,7 +539,7 @@ type Properties = {
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/object)
  */
-type _object<T extends Properties> = Annotations & {
+type _object<T extends Properties = Properties> = Annotations & {
 	type: 'object';
 	properties?: T;
 	required?: (keyof T)[];

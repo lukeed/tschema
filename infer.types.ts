@@ -321,6 +321,27 @@ assert<typeof O3>({
 });
 
 // ---
+// OBJECT / empty / any
+// ---
+
+let o4 = t.object();
+
+type O4 = t.Infer<typeof o4>;
+declare let O4: O4;
+
+// deno-lint-ignore ban-types
+assert<{}>(O4);
+assert<Record<string, unknown>>(O4);
+
+assert<O4>({
+	//
+});
+
+assert<O4>({
+	foo: 123,
+});
+
+// ---
 // OBJECT / `required` match keys
 // ---
 
