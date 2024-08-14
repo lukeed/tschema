@@ -51,6 +51,7 @@ export type Infer<T> =
 			& { [K in keyof P as P[K] extends _optional<infer _> ? K : never]?: Infer<P[K]> }
 			& { [K in keyof P as P[K] extends _optional<infer _> ? never : K]: Infer<P[K]> }
 		>
+	: T extends _unknown ? unknown
 	: T;
 
 /**
@@ -90,6 +91,7 @@ export type Type =
 	| _object
 	| _string
 	| _tuple<unknown>
+	| _unknown
 	| _all<unknown>
 	| _any<unknown>
 	| _one<unknown>
@@ -209,6 +211,27 @@ type _null = Annotations & {
  */
 function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
+}
+
+/**
+ * An unknown type.
+ *
+ * > [!IMPORTANT]
+ * > Equivalent to `unknown` in TypeScript, which allows any value.
+ */
+type _unknown = Annotations & {
+	default?: unknown;
+	examples?: unknown[];
+};
+
+/**
+ * Defines a schema of unknown type.
+ *
+ * > [!IMPORTANT]
+ * > Equivalent to `unknown` in TypeScript, which allows any value.
+ */
+function _unknown(options?: _unknown): _unknown {
+	return options || {};
 }
 
 /**
@@ -817,4 +840,5 @@ export {
 	_object as object,
 	_string as string,
 	_tuple as tuple,
+	_unknown as unknown,
 }

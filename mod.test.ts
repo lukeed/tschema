@@ -41,6 +41,42 @@ describe('Null', () => {
 	});
 });
 
+describe('Unknown', () => {
+	it('should be a function', () => {
+		assert(typeof t.unknown === 'function');
+	});
+
+	// https://json-schema.org/understanding-json-schema/reference/null
+	it('should be JSON schema', () => {
+		assertEquals(t.unknown(), {
+			// empty
+		});
+	});
+
+	it('should allow annotations', () => {
+		let output = t.unknown({
+			deprecated: true,
+			description: 'foobar',
+		});
+
+		assertEquals(output, {
+			deprecated: true,
+			description: 'foobar',
+		});
+	});
+
+	it('should force "type" property', () => {
+		let output = t.null({
+			// @ts-expect-error; not in options definition
+			type: 'other',
+		});
+
+		assertEquals(output, {
+			type: 'null',
+		});
+	});
+});
+
 describe('Constant', () => {
 	it('should be a function', () => {
 		assert(typeof t.constant === 'function');

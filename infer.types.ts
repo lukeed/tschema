@@ -738,3 +738,13 @@ let _pa3 = t.partial(
 	// @ts-expect-error wrong type
 	t.string(),
 );
+
+// ---
+// UNKNOWN
+// ---
+
+let u1 = t.unknown();
+declare let U1: t.Infer<typeof u1>;
+assert<unknown>(U1);
+
+assert<unknown>(123);
