@@ -188,11 +188,11 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
  * //-> }
  * ```
  */
-function _partial<P extends Properties>(input: _object<P>) {
+// @ts-expect-error; object needs distinct/definitive type else array overlap
+function _partial<P extends Properties>(input: _object<P>): _object<Partial<P>> {
 	// deno-lint-ignore no-unused-vars
 	let { required, ...schema } = input;
-	// @ts-expect-error; needs distinct type else array overlap
-	return schema as _object<Partial<P>>;
+	return schema;
 }
 
 /**
