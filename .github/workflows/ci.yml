@@ -49,6 +49,20 @@ jobs:
           bytes=$(bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
           echo "::notice::${bytes} b (gzip)"
 
+  dryrun:
+    needs: [test]
+    name: "Publish (dry run)"
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+      - run: deno task build 1.2.3
+      - run: deno publish --no-check -c jsr.json --dry-run
+
+
   # https://jsr.io/docs/publishing-packages#publishing-from-github-actions
   # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages#publishing-packages-to-the-npm-registry
   publish:
