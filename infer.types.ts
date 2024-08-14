@@ -674,3 +674,67 @@ assert<ONE1>(STRING);
 assert<ONE1>(NUMBER);
 assert<ONE1>(false);
 assert<ONE1>(true);
+
+// ---
+// PARTIAL
+// ---
+
+let pa1 = t.partial(
+	t.object({
+		foo: t.string(),
+		bar: t.array(t.number()),
+	}),
+);
+
+type PA1 = t.Infer<typeof pa1>;
+declare let PA1: PA1;
+
+assert<{
+	foo?: string;
+	bar?: number[];
+}>(PA1);
+
+assert<PA1>({});
+assert<PA1>({ foo: STRING });
+
+let pa2 = t.partial(
+	t.object({
+		foo: t.string(),
+		bar: t.object({
+			name: t.string(),
+			age: t.number(),
+		}),
+	}),
+);
+
+type PA2 = t.Infer<typeof pa2>;
+declare let PA2: PA2;
+
+assert<{
+	foo?: string;
+	bar?: {
+		name: string;
+		age: number;
+	};
+}>(PA2);
+
+assert<PA2>({
+	foo: STRING,
+});
+
+assert<PA2>({
+	bar: {
+		name: STRING,
+		age: NUMBER,
+	},
+});
+
+assert<PA2>({
+	// @ts-expect-error missing keys
+	bar: {},
+});
+
+let _pa3 = t.partial(
+	// @ts-expect-error wrong type
+	t.string(),
+);

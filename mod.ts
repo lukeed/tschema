@@ -163,6 +163,37 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
 }
 
 /**
+ * Marks all properties within an {@link object} as optional.
+ *
+ * The `input` schema is not modified.
+ *
+ * > [!IMPORTANT]
+ * > Only accepts an {@link object} schema!
+ *
+ * @example
+ * ```ts
+ * let person = t.partial(
+ *   t.object({
+ *     name: t.string(),
+ *     age: t.integer(),
+ *   }),
+ * );
+ *
+ * type Person = t.Infer<typeof person>;
+ * //-> {
+ * //->   name?: string;
+ * //->   age?: number;
+ * //-> }
+ * ```
+ */
+function _partial<P extends Properties>(input: _object<P>) {
+	// deno-lint-ignore no-unused-vars
+	let { required, ...schema } = input;
+	// @ts-expect-error; needs distinct type else array overlap
+	return schema as _object<Partial<P>>;
+}
+
+/**
  * The `null` type.
  *
  * [Reference](https://json-schema.org/understanding-json-schema/reference/null)
@@ -773,6 +804,7 @@ export {
 	// modifiers
 	_optional as optional,
 	_readonly as readonly,
+	_partial as partial,
 	// literals
 	_null as null,
 	_constant as constant,

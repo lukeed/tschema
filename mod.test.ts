@@ -597,6 +597,60 @@ describe('Readonly', () => {
 	});
 });
 
+describe('Partial', () => {
+	it('should be a function', () => {
+		assert(typeof t.partial === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.partial(
+			t.object({
+				name: t.string(),
+			}),
+		);
+
+		assertEquals(output, {
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				name: {
+					type: 'string',
+				},
+			},
+		});
+	});
+
+	it('should not mutate input', () => {
+		let original = t.object({
+			name: t.string(),
+		});
+
+		assertEquals(original, {
+			type: 'object',
+			required: ['name'],
+			additionalProperties: false,
+			properties: {
+				name: {
+					type: 'string',
+				},
+			},
+		});
+
+		let _ = t.partial(original);
+
+		assertEquals(original, {
+			type: 'object',
+			required: ['name'],
+			additionalProperties: false,
+			properties: {
+				name: {
+					type: 'string',
+				},
+			},
+		});
+	});
+});
+
 // ---
 
 describe('t.not', () => {
