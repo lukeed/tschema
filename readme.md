@@ -1,6 +1,6 @@
 # tschema [![CI](https://github.com/lukeed/tschema/workflows/CI/badge.svg)](https://github.com/lukeed/tschema/actions?query=workflow%3ACI) [![licenses](https://licenses.dev/b/npm/tschema)](https://licenses.dev/npm/tschema)
 
-> A tiny (444b) utility to build [JSON schema](https://json-schema.org/understanding-json-schema/reference) types.
+> A tiny (490b) utility to build [JSON schema](https://json-schema.org/understanding-json-schema/reference) types.
 
 ## Install
 
