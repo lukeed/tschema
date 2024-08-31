@@ -609,6 +609,44 @@ A5[0] = { name: STRING };
 A5[0].name = STRING;
 
 // ---
+// ARRAY / ENUM
+// ---
+
+let a6 = t.array(
+	t.enum(['UP', 'DOWN', 'LEFT', 'RIGHT']),
+);
+
+type A6 = t.Infer<typeof a6>;
+declare let A6: A6;
+
+// @ts-expect-error; incomplete
+assert<('UP' | 'DOWN' | 'LEFT')[]>(A6);
+assert<('UP' | 'DOWN' | 'LEFT' | 'RIGHT')[]>(A6);
+
+// @ts-expect-error; invalid
+assert<A6>(['ANOTHER']);
+assert<A6>(['DOWN']);
+assert<A6>([]);
+
+// ---
+// ARRAY / READONLY w/ ENUM
+// ---
+
+let a7 = t.readonly(a6);
+
+type A7 = t.Infer<typeof a7>;
+declare let A7: A7;
+
+// @ts-expect-error; incomplete
+assert<readonly ('UP' | 'DOWN' | 'LEFT')[]>(A7);
+assert<readonly ('UP' | 'DOWN' | 'LEFT' | 'RIGHT')[]>(A7);
+
+// @ts-expect-error; invalid
+assert<A7>(['ANOTHER']);
+assert<A7>(['DOWN']);
+assert<A7>([]);
+
+// ---
 // TUPLE
 // ---
 
