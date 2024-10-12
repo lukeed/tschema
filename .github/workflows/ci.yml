@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches:
-      - "**"
+      - '**'
     tags:
-      - "v**"
+      - 'v**'
 
 env:
   DENO_VERSION: 2.0
@@ -51,7 +51,7 @@ jobs:
 
   dryrun:
     needs: [test]
-    name: "Publish (dry run)"
+    name: 'Publish (dry run)'
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     steps:
@@ -61,7 +61,6 @@ jobs:
           deno-version: ${{ env.DENO_VERSION }}
       - run: deno task build 1.2.3
       - run: deno publish --no-check -c jsr.json --dry-run
-
 
   # https://jsr.io/docs/publishing-packages#publishing-from-github-actions
   # https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages#publishing-packages-to-the-npm-registry
@@ -88,18 +87,18 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           deno task build $VERSION
 
-      - name: "Publish → jsr"
+      - name: 'Publish → jsr'
         if: ${{ !contains(github.ref, '-next.') }}
         run: deno publish --no-check -c jsr.json
 
-      - name: "Publish → npm"
+      - name: 'Publish → npm'
         if: ${{ !contains(github.ref, '-next.') }}
         run: npm publish --provenance --access public
         working-directory: ./npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: "Publish → npm (pre-release)"
+      - name: 'Publish → npm (pre-release)'
         if: ${{ contains(github.ref, '-next.') }}
         run: npm publish --tag next --provenance --access public
         working-directory: ./npm
