@@ -37,6 +37,7 @@ export type Infer<T> =
 	: T extends _enum<infer E> ? E
 	: T extends _tuple<infer I>  ? Infer<I>
 	: T extends _array<infer I> ? Infer<I>[]
+	: T extends _dict<infer I> ? Record<string, Infer<I>>
 	// compositions
 	: T extends _not<infer _> ? unknown
 	: T extends _any<infer A> | _one<infer A> ? Infer<A>
@@ -577,6 +578,47 @@ function _tuple<
 }
 
 /**
+ * A dictionary is an `object` of values but unknown property names.
+ */
+type _dict<T extends Type> = Annotations & {
+	type: 'object';
+	patternProperties?: Type;
+	additionalProperties: T;
+	propertyNames?: Partial<_string>;
+	minProperties?: number;
+	maxProperties?: number;
+	default?: Infer<T>;
+	examples?: Array<Infer<T>>;
+};
+
+/**
+ * Define an `object` dictionary of values.
+ *
+ * > [!NOTE]
+ * > A {@link dict} is used to define an object of unknown/any property *keys* but all values must be of a certain type.
+ * > Consider {@link object} to define an object with specified/known keys.
+ *
+ * ```ts
+ * let ages = t.dict(t.integer())
+ * type Ages = t.Infer<typeof ages>;
+ * //-> Record<string, number>
+ * ```
+ */
+function _dict<
+	const I extends Type,
+	F extends _dict<I>,
+>(
+	value: I,
+	options?: Omit<F, 'type' | 'additionalProperties'>,
+): F {
+	return {
+		...options,
+		type: 'object',
+		additionalProperties: value,
+	} as F;
+}
+
+/**
  * The {@link _object} property definitions.
  *
  * > [!NOTE]
@@ -841,4 +883,5 @@ export {
 	_string as string,
 	_tuple as tuple,
 	_unknown as unknown,
+	_dict as dict,
 }

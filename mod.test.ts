@@ -455,6 +455,37 @@ describe('Tuple', () => {
 	});
 });
 
+describe('Dict', () => {
+	it('should be a function', () => {
+		assert(typeof t.dict === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		assertEquals(t.dict(t.string()), {
+			type: 'object',
+			additionalProperties: {
+				type: 'string',
+			},
+		});
+	});
+
+	it('should allow annotations', () => {
+		let output = t.dict(t.number(), {
+			deprecated: true,
+			description: 'hello',
+		});
+
+		assertEquals(output, {
+			type: 'object',
+			deprecated: true,
+			description: 'hello',
+			additionalProperties: {
+				type: 'number',
+			},
+		});
+	});
+});
+
 describe('Object', () => {
 	it('should be a function', () => {
 		assert(typeof t.object === 'function');
@@ -605,11 +636,6 @@ describe('Object', () => {
 			},
 			required: ['name'], // <<
 		});
-	});
-
-	it('should default "additionalProperties" to false', () => {
-		let output = t.object();
-		type X = t.Infer<typeof output>;
 	});
 });
 

@@ -786,3 +786,19 @@ declare let U1: t.Infer<typeof u1>;
 assert<unknown>(U1);
 
 assert<unknown>(123);
+
+// ---
+// DICT
+// ---
+
+let d1 = t.dict(t.integer());
+declare let D1: t.Infer<typeof d1>;
+assert<{ [key: string]: number }>(D1);
+assert<Record<string, number>>(D1);
+
+let d2 = t.dict(
+	t.array(t.string()),
+);
+
+declare let D2: t.Infer<typeof d2>;
+assert<Record<string, string[]>>(D2);
