@@ -8,7 +8,7 @@ on:
       - "v**"
 
 env:
-  DENO_VERSION: 1.45
+  DENO_VERSION: 2.0
 
 jobs:
   test:
