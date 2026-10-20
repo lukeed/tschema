@@ -701,11 +701,37 @@ function scan(c: Context, s: unknown, base: string) {
 	}
 }
 
+/**
+ * @internal
+ * The numeric limit keywords: the failing comparison and the error message.
+ */
+const LIMITS: [keyword: keyof Node, op: string, msg: string][] = [
+	['minimum', '<', 'must be >= '],
+	['maximum', '>', 'must be <= '],
+	['exclusiveMinimum', '<=', 'must be > '],
+	['exclusiveMaximum', '>=', 'must be < '],
+];
+
+/**
+ * @internal
+ * The size limit keywords: the measured expression, the failing comparison, and the unit.
+ */
+const SIZES: [keyword: keyof Node, size: string, op: string, unit: string][] = [
+	['minItems', '#.length', '<', 'items'],
+	['maxItems', '#.length', '>', 'items'],
+	['minProperties', 'Object.keys(#).length', '<', 'properties'],
+	['maxProperties', 'Object.keys(#).length', '>', 'properties'],
+];
+
 function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: Mode): string {
 	if (s === true) return '';
 	if (s === false) return fail(c, m, ip, kp, 'is not allowed');
 
-	let y: string, i: string, k: string, sub: string, n: number;
+	let rule = (cond: string, keyword: string, msg: string) =>
+		`if(${cond})${fail(c, m, ip, [...kp, keyword], msg)}`;
+	let test = (list: Schema[]) => list.map((sub) => `${fn(c, sub, TEST)}(${x})`);
+
+	let y: string, i: string, k: string, sub: string, v: unknown;
 	let any = '', num = '', str = '', arr = '', obj = '';
 
 	if (typeof s.$ref === 'string') {
@@ -713,15 +739,11 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	}
 
 	if (s.const !== undefined) {
-		any += `if(${differs(c, x, [s.const])})${
-			fail(c, m, ip, [...kp, 'const'], 'must be equal to constant')
-		}`;
+		any += rule(differs(c, x, [s.const]), 'const', 'must be equal to constant');
 	}
 
 	if (s.enum) {
-		any += `if(${differs(c, x, s.enum)})${
-			fail(c, m, ip, [...kp, 'enum'], 'must be equal to one of the allowed values')
-		}`;
+		any += rule(differs(c, x, s.enum), 'enum', 'must be equal to one of the allowed values');
 	}
 
 	if (s.allOf) {
@@ -731,98 +753,86 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	}
 
 	if (s.anyOf) {
-		any += `if(!(${s.anyOf.map((x2) => `${fn(c, x2, TEST)}(${x})`).join('||')}))${
-			fail(c, m, ip, [...kp, 'anyOf'], 'must match a schema in anyOf')
-		}`;
+		any += rule(`!(${test(s.anyOf).join('||')})`, 'anyOf', 'must match a schema in anyOf');
 	}
 
 	if (s.oneOf) {
-		any += `if(${s.oneOf.map((x2) => `(${fn(c, x2, TEST)}(${x})?1:0)`).join('+')}!==1)${
-			fail(c, m, ip, [...kp, 'oneOf'], 'must match exactly one schema in oneOf')
-		}`;
+		any += rule(
+			`${test(s.oneOf).map((call) => `(${call}?1:0)`).join('+')}!==1`,
+			'oneOf',
+			'must match exactly one schema in oneOf',
+		);
 	}
 
 	if (s.not !== undefined) {
-		any += `if(${fn(c, s.not, TEST)}(${x}))${fail(c, m, ip, [...kp, 'not'], 'must NOT be valid')}`;
+		any += rule(test([s.not])[0], 'not', 'must NOT be valid');
 	}
 
 	// numbers
 
-	if (typeof s.minimum === 'number') {
-		num += `if(${x}<${s.minimum})${fail(c, m, ip, [...kp, 'minimum'], `must be >= ${s.minimum}`)}`;
+	for (let [keyword, op, msg] of LIMITS) {
+		if (typeof (v = s[keyword]) === 'number') num += rule(`${x}${op}${v}`, keyword, msg + v);
 	}
 
-	if (typeof s.maximum === 'number') {
-		num += `if(${x}>${s.maximum})${fail(c, m, ip, [...kp, 'maximum'], `must be <= ${s.maximum}`)}`;
-	}
-
-	if (typeof s.exclusiveMinimum === 'number') {
-		num += `if(${x}<=${s.exclusiveMinimum})${
-			fail(c, m, ip, [...kp, 'exclusiveMinimum'], `must be > ${s.exclusiveMinimum}`)
-		}`;
-	}
-
-	if (typeof s.exclusiveMaximum === 'number') {
-		num += `if(${x}>=${s.exclusiveMaximum})${
-			fail(c, m, ip, [...kp, 'exclusiveMaximum'], `must be < ${s.exclusiveMaximum}`)
-		}`;
-	}
-
-	if (typeof s.multipleOf === 'number') {
-		num += `if(${
-			Number.isInteger(s.multipleOf)
-				? `${x}%${s.multipleOf}!==0`
-				: `!${use(c, 'mul')}(${x},${s.multipleOf})`
-		})${fail(c, m, ip, [...kp, 'multipleOf'], `must be multiple of ${s.multipleOf}`)}`;
+	if (typeof (v = s.multipleOf) === 'number') {
+		num += rule(
+			Number.isInteger(v) ? `${x}%${v}!==0` : `!${use(c, 'mul')}(${x},${v})`,
+			'multipleOf',
+			`must be multiple of ${v}`,
+		);
 	}
 
 	// strings
 
-	if (n = s.minLength!) {
-		str += `if(${x}.length<${n * 2}&&${use(c, 'len')}(${x})<${n})${
-			fail(c, m, ip, [...kp, 'minLength'], `must NOT have fewer than ${n} characters`)
-		}`;
+	if (typeof (v = s.minLength) === 'number' && v > 0) {
+		str += rule(
+			`${x}.length<${v * 2}&&${use(c, 'len')}(${x})<${v}`,
+			'minLength',
+			`must NOT have fewer than ${v} characters`,
+		);
 	}
 
-	if (typeof (n = s.maxLength!) === 'number') {
-		str += `if(${x}.length>${n}&&${use(c, 'len')}(${x})>${n})${
-			fail(c, m, ip, [...kp, 'maxLength'], `must NOT have more than ${n} characters`)
-		}`;
+	if (typeof (v = s.maxLength) === 'number') {
+		str += rule(
+			`${x}.length>${v}&&${use(c, 'len')}(${x})>${v}`,
+			'maxLength',
+			`must NOT have more than ${v} characters`,
+		);
 	}
 
-	if (typeof s.pattern === 'string') {
-		str += `if(!${regex(c, s.pattern)}.test(${x}))${
-			fail(c, m, ip, [...kp, 'pattern'], `must match pattern "${s.pattern}"`)
-		}`;
+	if (typeof (v = s.pattern) === 'string') {
+		str += rule(`!${regex(c, v)}.test(${x})`, 'pattern', `must match pattern "${v}"`);
 	}
 
-	if (s.format && (sub = FORMATS[s.format])) {
+	if (typeof (v = s.format) === 'string' && (sub = FORMATS[v])) {
 		sub = sub[0] === '/'
 			? `${hoist(c, sub)}.test(${x})`
 			: sub.replace(/\$(\w+)/, (_, h) => use(c, h)).replace('#', x);
-		str += `if(!${sub})${fail(c, m, ip, [...kp, 'format'], `must match format "${s.format}"`)}`;
+		str += rule('!' + sub, 'format', `must match format "${v}"`);
+	}
+
+	// sizes
+
+	for (let [keyword, size, op, unit] of SIZES) {
+		if (typeof (v = s[keyword]) === 'number') {
+			let code = rule(
+				size.replace('#', x) + op + v,
+				keyword,
+				`must NOT have ${op === '<' ? 'fewer' : 'more'} than ${v} ${unit}`,
+			);
+			if (unit === 'items') arr += code;
+			else obj += code;
+		}
 	}
 
 	// arrays
 
-	if (typeof (n = s.minItems!) === 'number') {
-		arr += `if(${x}.length<${n})${
-			fail(c, m, ip, [...kp, 'minItems'], `must NOT have fewer than ${n} items`)
-		}`;
-	}
-
-	if (typeof (n = s.maxItems!) === 'number') {
-		arr += `if(${x}.length>${n})${
-			fail(c, m, ip, [...kp, 'maxItems'], `must NOT have more than ${n} items`)
-		}`;
-	}
-
 	let tuple = Array.isArray(s.items);
 	let prefix = tuple ? s.items as Schema[] : s.prefixItems;
-	let rest = tuple || (s.items === undefined && prefix)
-		? s.additionalItems
-		: s.items as Schema | undefined;
-	let keyword = tuple || (s.items === undefined && prefix) ? 'additionalItems' : 'items';
+	let legacy = tuple || (s.items === undefined && prefix);
+	let rest = legacy ? s.additionalItems : s.items as Schema | undefined;
+	let keyword = legacy ? 'additionalItems' : 'items';
+	let count = prefix ? prefix.length : 0;
 
 	if (prefix) {
 		prefix.forEach((x2, idx) => {
@@ -832,63 +842,43 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 		});
 	}
 
-	n = prefix ? prefix.length : 0;
-
 	if (rest === false) {
-		arr += `if(${x}.length>${n})${
-			fail(c, m, ip, [...kp, keyword], `must NOT have more than ${n} items`)
-		}`;
+		arr += rule(`${x}.length>${count}`, keyword, `must NOT have more than ${count} items`);
 	} else if (rest !== undefined && rest !== true) {
 		i = 'i' + ++c.n;
 		y = 'y' + ++c.n;
 		sub = gen(c, rest, y, [...ip, [i, false]], [...kp, keyword], m);
-		if (sub) arr += `for(let ${i}=${n};${i}<${x}.length;${i}++){const ${y}=${x}[${i}];${sub}}`;
+		if (sub) arr += `for(let ${i}=${count};${i}<${x}.length;${i}++){const ${y}=${x}[${i}];${sub}}`;
 	}
 
 	if (s.contains !== undefined) {
 		let min = typeof s.minContains === 'number' ? s.minContains : 1;
-		let count = 'n' + ++c.n;
+		let n = 'n' + ++c.n;
 		i = 'i' + ++c.n;
-		arr += `let ${count}=0;for(let ${i}=0;${i}<${x}.length;${i}++)if(${
+		arr += `let ${n}=0;for(let ${i}=0;${i}<${x}.length;${i}++)if(${
 			fn(c, s.contains, TEST)
-		}(${x}[${i}]))${count}++;`;
+		}(${x}[${i}]))${n}++;`;
 		if (min > 0) {
-			arr += `if(${count}<${min})${
-				fail(
-					c,
-					m,
-					ip,
-					[...kp, s.minContains === undefined ? 'contains' : 'minContains'],
-					`must contain at least ${min} valid item(s)`,
-				)
-			}`;
+			arr += rule(
+				`${n}<${min}`,
+				s.minContains === undefined ? 'contains' : 'minContains',
+				`must contain at least ${min} valid item(s)`,
+			);
 		}
-		if (typeof (n = s.maxContains!) === 'number') {
-			arr += `if(${count}>${n})${
-				fail(c, m, ip, [...kp, 'maxContains'], `must contain at most ${n} valid item(s)`)
-			}`;
+		if (typeof (v = s.maxContains) === 'number') {
+			arr += rule(`${n}>${v}`, 'maxContains', `must contain at most ${v} valid item(s)`);
 		}
 	}
 
 	if (s.uniqueItems) {
-		arr += `if(${x}.length>1&&${use(c, 'dup')}(${x}))${
-			fail(c, m, ip, [...kp, 'uniqueItems'], 'must NOT have duplicate items')
-		}`;
+		arr += rule(
+			`${x}.length>1&&${use(c, 'dup')}(${x})`,
+			'uniqueItems',
+			'must NOT have duplicate items',
+		);
 	}
 
 	// objects
-
-	if (typeof (n = s.minProperties!) === 'number') {
-		obj += `if(Object.keys(${x}).length<${n})${
-			fail(c, m, ip, [...kp, 'minProperties'], `must NOT have fewer than ${n} properties`)
-		}`;
-	}
-
-	if (typeof (n = s.maxProperties!) === 'number') {
-		obj += `if(Object.keys(${x}).length>${n})${
-			fail(c, m, ip, [...kp, 'maxProperties'], `must NOT have more than ${n} properties`)
-		}`;
-	}
 
 	let props = s.properties || {};
 	let required = new Set(s.required);
@@ -896,11 +886,9 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	for (k in props) {
 		y = 'y' + ++c.n;
 		sub = gen(c, props[k], y, [...ip, escape(k)], [...kp, 'properties', escape(k)], m);
-		let miss = required.delete(k)
-			? fail(c, m, ip, [...kp, 'required'], `must have required property "${k}"`)
-			: '';
-		if (miss) {
-			obj += `const ${y}=${property(c, x, k)};if(${y}===undefined)${miss}` +
+		if (required.delete(k)) {
+			obj += `const ${y}=${property(c, x, k)};` +
+				rule(`${y}===undefined`, 'required', `must have required property "${k}"`) +
 				(sub ? `else{${sub}}` : '');
 		} else if (sub) {
 			obj += `const ${y}=${property(c, x, k)};if(${y}!==undefined){${sub}}`;
@@ -908,41 +896,42 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	}
 
 	for (k of required) {
-		obj += `if(${property(c, x, k)}===undefined)${
-			fail(c, m, ip, [...kp, 'required'], `must have required property "${k}"`)
-		}`;
+		obj += rule(
+			`${property(c, x, k)}===undefined`,
+			'required',
+			`must have required property "${k}"`,
+		);
 	}
 
-	let extra = s.additionalProperties;
-	let names = s.propertyNames;
-	let patterns = s.patternProperties ? Object.keys(s.patternProperties) : [];
+	let extra = s.additionalProperties === true ? undefined : s.additionalProperties;
+	let names = s.propertyNames === true ? undefined : s.propertyNames;
+	let patterns = s.patternProperties || {};
+	let keys = Object.keys(patterns);
 
-	if (extra === true) extra = undefined;
-	if (names === true) names = undefined;
-
-	if (extra !== undefined || names !== undefined || patterns.length) {
+	if (extra !== undefined || names !== undefined || keys.length) {
 		k = 'k' + ++c.n;
 		y = 'y' + ++c.n;
-		let hit = extra !== undefined && patterns.length ? 'h' + ++c.n : '';
+		let hit = extra !== undefined && keys.length ? 'h' + ++c.n : '';
 		let body = names === undefined ? '' : gen(c, names, k, ip, [...kp, 'propertyNames'], m);
 
 		if (hit) body += `let ${hit}=0;`;
 
-		for (let p of patterns) {
-			sub = gen(c, s.patternProperties![p], y, [...ip, [k, true]], [
-				...kp,
-				'patternProperties',
-				escape(p),
-			], m);
+		for (let p of keys) {
+			sub = gen(c, patterns[p], y, [...ip, [k, true]], [...kp, 'patternProperties', escape(p)], m);
 			if (sub || hit) body += `if(${regex(c, p)}.test(${k})){${hit && hit + '=1;'}${sub}}`;
 		}
 
 		if (extra !== undefined) {
-			let keys = Object.keys(props);
-			let known = keys.length < 9
-				? keys.map((key) => `${k}===${JSON.stringify(key)}`).join('||')
-				: `${hoist(c, `new Set(${JSON.stringify(keys)})`)}.has(${k})`;
-			let cond = [known && `!(${known})`, hit && `!${hit}`].filter(Boolean).join('&&');
+			let known = Object.keys(props);
+			let cond = [
+				known.length &&
+				`!(${
+					known.length < 9
+						? known.map((key) => `${k}===${JSON.stringify(key)}`).join('||')
+						: `${hoist(c, `new Set(${JSON.stringify(known)})`)}.has(${k})`
+				})`,
+				hit && '!' + hit,
+			].filter(Boolean).join('&&');
 			sub = gen(c, extra, y, [...ip, [k, true]], [...kp, 'additionalProperties'], m);
 			if (sub) body += cond ? `if(${cond}){${sub}}` : sub;
 		}
@@ -966,9 +955,12 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 	if (!types) return out;
 
-	let guard = types.map((t) => check(t, x)).join('||');
-	let msg = fail(c, m, ip, [...kp, 'type'], `must be ${types.join(' or ')}`);
-	return out ? `if(!(${guard}))${msg}else{${out}}` : `if(!(${guard}))${msg}`;
+	let guard = rule(
+		`!(${types.map((t) => check(t, x)).join('||')})`,
+		'type',
+		`must be ${types.join(' or ')}`,
+	);
+	return out ? `${guard}else{${out}}` : guard;
 }
 
 /**
