@@ -6,9 +6,9 @@
 	"scripts": {
 		"build": "bun scripts/build.ts",
 		"release": "bun scripts/release.ts",
-		"bench": "bun run build && bun run bench:bun && bun run bench:node",
+		"bench": "bun run build && bun bench/build.ts && bun run bench:bun && bun run bench:node",
 		"test": "bun test",
-		"types": "bun run build && tsc",
+		"types": "bun run build && bun bench/build.ts && tsc",
 		"lint": "oxlint",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
