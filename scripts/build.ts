@@ -27,6 +27,8 @@ function bail(label: string, errors: string[]): never {
 	Deno.exit(1);
 }
 
+let config = JSON.parse(await Deno.readTextFile('deno.json'));
+
 // build "/jsr.json" file
 // @see https://jsr.io/schema/config-file.v1.json
 let jsr = {
@@ -34,6 +36,13 @@ let jsr = {
 	version: version,
 	exports: {
 		'.': './mod.ts',
+		'./validate': './validate.ts',
+		'./plugins': './plugins.ts',
+	},
+	imports: {
+		'rolldown': config.imports['rolldown'],
+		'rolldown/': config.imports['rolldown/'],
+		'vite': config.imports['vite'],
 	},
 	publish: {
 		include: [
@@ -43,6 +52,7 @@ let jsr = {
 		],
 		exclude: [
 			'*.test.ts',
+			'*.types.ts',
 		],
 	},
 };
@@ -63,37 +73,67 @@ if (await exists(outdir)) {
 
 await Deno.mkdir(outdir);
 
-let entry = resolve('mod.ts');
-let source = await Deno.readTextFile(entry);
+// source file -> output name
+const ENTRIES: Record<string, string> = {
+	'mod.ts': 'index',
+	'validate.ts': 'validate',
+	'compile.ts': 'compile',
+	'plugins.ts': 'plugins',
+};
 
-let esm = oxc.transform(entry, source);
-if (esm.errors.length > 0) bail('transform', esm.errors);
+function relink(code: string): string {
+	return code.replace(/(from\s+['"])\.\/([\w-]+\.ts)(['"])/g, (_, a, file, b) => {
+		if (!ENTRIES[file]) bail('relink', [`Unknown import: ${file}`]);
+		return a + './' + ENTRIES[file] + '.mjs' + b;
+	});
+}
 
-outfile = join(outdir, 'index.mjs');
-console.log('> writing "index.mjs" file');
-await Deno.writeTextFile(outfile, esm.sourceText);
+for (let [file, name] of Object.entries(ENTRIES)) {
+	let entry = resolve(file);
+	let source = await Deno.readTextFile(entry);
 
-let dts = oxc.isolatedDeclaration(entry, source);
-if (dts.errors.length > 0) bail('dts', dts.errors);
+	let esm = oxc.transform(entry, source);
+	if (esm.errors.length > 0) bail('transform', esm.errors);
 
-outfile = join(outdir, 'index.d.ts');
-console.log('> writing "index.d.ts" file');
-await Deno.writeTextFile(outfile, dts.sourceText);
+	outfile = join(outdir, name + '.mjs');
+	console.log('> writing "%s.mjs" file', name);
+	await Deno.writeTextFile(outfile, relink(esm.sourceText));
+
+	let dts = oxc.isolatedDeclaration(entry, source);
+	if (dts.errors.length > 0) bail('dts', dts.errors);
+
+	outfile = join(outdir, name + '.d.mts');
+	console.log('> writing "%s.d.mts" file', name);
+	await Deno.writeTextFile(outfile, relink(dts.sourceText));
+}
 
 let pkg = {
 	name: 'tschema',
 	version: version,
 	repository: 'lukeed/tschema',
-	description: `A tiny (${bytes}b) utility to build JSON schema types.`,
+	description: `A tiny (${bytes}b) utility to build and validate JSON schema types.`,
 	module: 'index.mjs',
-	types: 'index.d.ts',
+	types: 'index.d.mts',
 	type: 'module',
 	license: 'MIT',
+	sideEffects: false,
 	exports: {
 		'.': {
 			import: {
-				types: './index.d.ts',
+				types: './index.d.mts',
 				default: './index.mjs',
+			},
+		},
+		'./validate': {
+			import: {
+				types: './validate.d.mts',
+				default: './validate.mjs',
+			},
+		},
+		'./plugins': {
+			import: {
+				types: './plugins.d.mts',
+				default: './plugins.mjs',
 			},
 		},
 		'./package.json': './package.json',
@@ -106,13 +146,23 @@ let pkg = {
 	engines: {
 		node: '>=14',
 	},
+	peerDependencies: {
+		rolldown: config.imports['rolldown'].replace('npm:rolldown@', ''),
+		vite: config.imports['vite'].replace('npm:vite@', ''),
+	},
+	peerDependenciesMeta: {
+		rolldown: { optional: true },
+		vite: { optional: true },
+	},
 	keywords: [
 		'infer json schema',
 		'json schema builder',
+		'json schema validator',
 		'object schema',
 		'typed schema',
 		'typecheck',
 		'validate',
+		'ajv',
 	],
 };
 
