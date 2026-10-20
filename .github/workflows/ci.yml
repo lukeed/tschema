@@ -48,8 +48,10 @@ jobs:
 
       - name: gzip (bytes)
         run: |
-          bytes=$(bun build --minify mod.ts | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
-          echo "::notice::${bytes} b (gzip)"
+          for file in mod.ts validate.ts; do
+            bytes=$(bun build --minify $file | bunx terser --mangle --compress --module --ecma=2020 | gzip -9 | wc -c)
+            echo "::notice::${file} ${bytes} b (gzip)"
+          done
 
   dryrun:
     needs: [test]
