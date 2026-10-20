@@ -22,7 +22,8 @@
 	"exclude": [
 		"coverage",
 		"readme.md",
-		"npm"
+		"npm",
+		"suite"
 	],
 	"imports": {
 		"@sinclair/typebox": "npm:@sinclair/typebox@^0.32",
