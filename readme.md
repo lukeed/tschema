@@ -218,44 +218,39 @@ always kept up-to-date.
 
 ## Benchmarks
 
+Run with [mitata](https://github.com/evanwashere/mitata) on an AMD EPYC 9V45, using Bun 1.4.3 and Node.js 26.12.0. See the [`bench`](/bench) directory.
+
+```sh
+bun run bench
+```
+
 ### Builders
 
-> Run on Deno 1.45.5 `(release, aarch64-apple-darwin)` with v8 `12.7.224.13`
-
-```
-file: tschema/scripts/bench.ts
-runtime: deno 1.45.5 (aarch64-apple-darwin)
-
-# Builders
-  tschema              5,328,603.3 iter/sec     187.67 ns/iter
-  sinclair/typebox       130,480.2 iter/sec       7.66 µs/iter
-  zod-to-json-schema      46,928.5 iter/sec      21.31 µs/iter
-
-# Summary
-  tschema
-    40.84x faster than sinclair/typebox
-   113.55x faster than zod-to-json-schema
-```
+| benchmark | bun | node |
+| --- | --- | --- |
+| tschema | 167.6 ns | 152.5 ns |
+| sinclair/typebox | 2.80 µs | 6.73 µs |
+| zod-to-json-schema | 17.16 µs | 19.97 µs |
 
 ### Validation
 
-> Run on Deno 2.9.7 `(stable, release, x86_64-unknown-linux-gnu)` with v8 `15.0.245.2`
-
-```
-file: tschema/scripts/validate.bench.ts
-
-# All errors (valid input)
-  tschema/validate     155.5 ns/iter
-  ajv (allErrors)      245.1 ns/iter
-
-# First error (invalid input)
-  tschema/parse         10.5 ns/iter
-  ajv                   54.0 ns/iter
-
-# Compile
-  tschema/validate      79.7 µs/iter
-  ajv                    4.8 ms/iter
-```
+| benchmark | bun | node |
+| --- | --- | --- |
+| **all errors (valid)** | | |
+| tschema/validate | 155.8 ns | 149.6 ns |
+| ajv (allErrors) | 188.4 ns | 245.7 ns |
+| **first error (valid)** | | |
+| tschema/parse | 151.8 ns | 145.8 ns |
+| ajv | 206.1 ns | 276.9 ns |
+| **all errors (invalid)** | | |
+| tschema/validate | 154.7 ns | 129.9 ns |
+| ajv (allErrors) | 211.7 ns | 207.2 ns |
+| **first error (invalid)** | | |
+| tschema/parse | 9.2 ns | 9.4 ns |
+| ajv | 32.0 ns | 49.4 ns |
+| **compile** | | |
+| tschema/validate | 103.8 µs | 81.0 µs |
+| ajv | 5.92 ms | 4.82 ms |
 
 ## License
 

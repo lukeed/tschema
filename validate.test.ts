@@ -1,10 +1,7 @@
-import { assert as ok, assertEquals, assertThrows } from '@std/assert';
-import { describe, it } from '@std/testing/bdd';
-import * as t from './mod.ts';
-import { assert, parse, validate, ValidationError } from './validate.ts';
-import * as suite from './scripts/suite.ts';
-
-import type { Type } from './mod.ts';
+import { describe, expect, it } from 'bun:test';
+import * as t from './mod';
+import { assert, parse, validate, ValidationError } from './validate';
+import * as suite from './scripts/suite';
 
 const User = t.object({
 	name: t.string({ minLength: 2 }),
@@ -17,13 +14,13 @@ describe('validate', () => {
 	it('should return the input when valid', () => {
 		let input = { name: 'lukeed', tags: ['a'], role: 'admin' as const };
 		let result = validate(User, input);
-		assertEquals(result, { ok: true, value: input });
-		ok(result.ok && result.value === input);
+		expect(result).toStrictEqual({ ok: true, value: input });
+		expect(result.ok && result.value === input).toBe(true);
 	});
 
 	it('should return all errors', () => {
 		let result = validate(User, { name: 'x', age: -1, tags: ['a', 'a', 1], extra: true });
-		assertEquals(result, {
+		expect(result).toStrictEqual({
 			ok: false,
 			errors: [
 				{
@@ -61,20 +58,24 @@ describe('validate', () => {
 	});
 
 	it('should report the type error only', () => {
-		assertEquals(validate(User, []), {
+		expect(validate(User, [])).toStrictEqual({
 			ok: false,
-			errors: [{
-				instanceLocation: '',
-				keywordLocation: '/type',
-				error: 'must be object',
-			}],
+			errors: [
+				{
+					instanceLocation: '',
+					keywordLocation: '/type',
+					error: 'must be object',
+				},
+			],
 		});
 	});
 
 	it('should escape instance locations', () => {
 		let schema = t.dict(t.integer());
 		let result = validate(schema, { 'a/b~c': 1.5 });
-		assertEquals(result.ok ? [] : result.errors.map((e) => e.instanceLocation), ['/a~1b~0c']);
+		expect(result.ok ? [] : result.errors.map((e) => e.instanceLocation)).toStrictEqual([
+			'/a~1b~0c',
+		]);
 	});
 
 	it('should resolve recursive schemas', () => {
@@ -82,34 +83,38 @@ describe('validate', () => {
 			t.object({
 				value: t.string(),
 				children: t.array(self),
-			}));
+			}),
+		);
 
 		let tree = { value: 'a', children: [{ value: 'b', children: [{ value: 'c', children: [] }] }] };
-		assertEquals(validate(Tree, tree).ok, true);
+		expect(validate(Tree, tree).ok).toStrictEqual(true);
 
 		let result = validate(Tree, {
 			value: 'a',
 			children: [{ value: 'b', children: [{ value: 3, children: [] }] }],
 		});
-		assertEquals(result, {
+		expect(result).toStrictEqual({
 			ok: false,
-			errors: [{
-				instanceLocation: '/children/0/children/0/value',
-				keywordLocation:
-					'/properties/children/items/$ref/properties/children/items/$ref/properties/value/type',
-				error: 'must be string',
-			}],
+			errors: [
+				{
+					instanceLocation: '/children/0/children/0/value',
+					keywordLocation:
+						'/properties/children/items/$ref/properties/children/items/$ref/properties/value/type',
+					error: 'must be string',
+				},
+			],
 		});
 	});
 
 	it('should resolve embedded recursive schemas', () => {
 		let Tree = t.recursive('Tree', (self) => t.object({ children: t.array(self) }));
 		let Forest = t.object({ a: Tree, b: t.array(Tree) });
-		assertEquals(
+		expect(
 			validate(Forest, { a: { children: [] }, b: [{ children: [{ children: [] }] }] }).ok,
-			true,
+		).toStrictEqual(true);
+		expect(validate(Forest, { a: { children: [] }, b: [{ children: [{}] }] }).ok).toStrictEqual(
+			false,
 		);
-		assertEquals(validate(Forest, { a: { children: [] }, b: [{ children: [{}] }] }).ok, false);
 	});
 
 	it('should validate compositions', () => {
@@ -119,14 +124,13 @@ describe('validate', () => {
 			not: t.not(t.null()),
 		});
 
-		assertEquals(validate(schema, { id: 1, kind: 'a', not: 0 }).ok, true);
-		assertEquals(
+		expect(validate(schema, { id: 1, kind: 'a', not: 0 }).ok).toStrictEqual(true);
+		expect(
 			validate(schema, { id: '00000000-0000-0000-0000-000000000000', kind: 'b', not: '' }).ok,
-			true,
-		);
+		).toStrictEqual(true);
 
 		let result = validate(schema, { id: 'x', kind: 'c', not: null });
-		assertEquals(result.ok ? [] : result.errors.map((e) => e.keywordLocation), [
+		expect(result.ok ? [] : result.errors.map((e) => e.keywordLocation)).toStrictEqual([
 			'/properties/id/anyOf',
 			'/properties/kind/oneOf',
 			'/properties/not/not',
@@ -135,28 +139,24 @@ describe('validate', () => {
 
 	it('should treat inherited keys as missing', () => {
 		let schema = t.object({ toString: t.string() });
-		assertEquals(validate(schema, {}).ok, false);
-		assertEquals(validate(schema, { toString: 'x' }).ok, true);
+		expect(validate(schema, {}).ok).toStrictEqual(false);
+		expect(validate(schema, { toString: 'x' }).ok).toStrictEqual(true);
 	});
 
 	it('should throw on unresolved references', () => {
-		assertThrows(
-			() => validate({ $ref: '#/$defs/missing' } as t.Type, 1),
-			Error,
-			'Unresolved $ref',
-		);
+		expect(() => validate({ $ref: '#/$defs/missing' } as t.Type, 1)).toThrow('Unresolved $ref');
 	});
 });
 
 describe('parse', () => {
 	it('should return the input when valid', () => {
 		let input = { name: 'lukeed', tags: [], role: 'user' as const };
-		assertEquals(parse(User, input), input);
+		expect(parse(User, input)).toStrictEqual(input);
 	});
 
 	it('should return undefined when invalid', () => {
-		assertEquals(parse(User, { name: 'lukeed', tags: [], role: 'other' }), undefined);
-		assertEquals(parse(User, null), undefined);
+		expect(parse(User, { name: 'lukeed', tags: [], role: 'other' })).toStrictEqual(undefined);
+		expect(parse(User, null)).toStrictEqual(undefined);
 	});
 });
 
@@ -164,22 +164,27 @@ describe('assert', () => {
 	it('should not throw when valid', () => {
 		let input: unknown = { name: 'lukeed', tags: [], role: 'user' };
 		assert(User, input);
-		assertEquals(input.name, 'lukeed');
+		expect(input.name).toStrictEqual('lukeed');
 	});
 
 	it('should throw the first error', () => {
-		let err = assertThrows(
-			() => assert(User, { name: 1, tags: 2 }),
-			ValidationError,
-			'/name must be string',
-		);
-		assertEquals(err.name, 'ValidationError');
-		assertEquals(err.instanceLocation, '/name');
-		assertEquals(err.keywordLocation, '/properties/name/type');
+		let err: unknown;
+		try {
+			assert(User, { name: 1, tags: 2 });
+		} catch (e) {
+			err = e;
+		}
+		expect(err).toBeInstanceOf(ValidationError);
+		expect(err).toMatchObject({
+			name: 'ValidationError',
+			message: '/name must be string',
+			instanceLocation: '/name',
+			keywordLocation: '/properties/name/type',
+		});
 	});
 
 	it('should throw for the root value', () => {
-		assertThrows(() => assert(User, 'x'), ValidationError, 'must be object');
+		expect(() => assert(User, 'x')).toThrow('must be object');
 	});
 });
 
@@ -189,13 +194,11 @@ for (let [file, groups] of await suite.load()) {
 			for (let test of group.tests) {
 				it(`${group.description} :: ${test.description}`, () => {
 					let result = validate(group.schema, test.data);
-					assertEquals(result.ok, test.valid, 'validate');
-					assertEquals(result.ok || result.errors.length > 0, true);
-					assertEquals(
+					expect(result.ok).toStrictEqual(test.valid);
+					expect(result.ok || result.errors.length > 0).toStrictEqual(true);
+					expect(
 						parse(group.schema, test.data) !== undefined || test.data === undefined,
-						test.valid,
-						'parse',
-					);
+					).toStrictEqual(test.valid);
 				});
 			}
 		}

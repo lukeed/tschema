@@ -118,45 +118,56 @@ function equal(): (a: unknown, b: unknown) => boolean {
  * Each factory must be self-contained, since its source is copied into compiled modules.
  */
 export const helpers: Record<string, Helper> = {
-	err: [() => (i: string, k: string, m: string): Invalid => ({
-		instanceLocation: i,
-		keywordLocation: k,
-		error: m,
-	})],
+	err: [
+		() =>
+			(i: string, k: string, m: string): Invalid => ({
+				instanceLocation: i,
+				keywordLocation: k,
+				error: m,
+			}),
+	],
 	e: [
 		(err: (i: string, k: string, m: string) => Invalid) =>
-		(E: Invalid[] | undefined, i: string, k: string, m: string) => {
-			E = E || [];
-			E.push(err(i, k, m));
-			return E;
-		},
+			(E: Invalid[] | undefined, i: string, k: string, m: string) => {
+				E = E || [];
+				E.push(err(i, k, m));
+				return E;
+			},
 		'err',
 	],
-	m: [() => (E: Invalid[] | undefined, r: Invalid[], i: string, k: string) => {
-		for (let e of r) {
-			e.instanceLocation = i + e.instanceLocation;
-			e.keywordLocation = k + e.keywordLocation;
-		}
-		return E ? E.concat(r) : r;
-	}],
-	p: [() => (r: Invalid, i: string, k: string) => {
-		r.instanceLocation = i + r.instanceLocation;
-		r.keywordLocation = k + r.keywordLocation;
-		return r;
-	}],
+	m: [
+		() => (E: Invalid[] | undefined, r: Invalid[], i: string, k: string) => {
+			for (let e of r) {
+				e.instanceLocation = i + e.instanceLocation;
+				e.keywordLocation = k + e.keywordLocation;
+			}
+			return E ? E.concat(r) : r;
+		},
+	],
+	p: [
+		() => (r: Invalid, i: string, k: string) => {
+			r.instanceLocation = i + r.instanceLocation;
+			r.keywordLocation = k + r.keywordLocation;
+			return r;
+		},
+	],
 	ptr: [() => (k: string) => k.replace(/~/g, '~0').replace(/\//g, '~1')],
 	has: [() => (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k)],
-	len: [() => (s: string) => {
-		let n = 0;
-		for (let i = 0; i < s.length; i++) {
-			if ((s.charCodeAt(i) & 0xfc00) !== 0xdc00) n++;
-		}
-		return n;
-	}],
-	mul: [() => (x: number, m: number) => {
-		let q = x / m;
-		return isFinite(q) ? Math.abs(q - Math.round(q)) < 1e-8 : x % m === 0;
-	}],
+	len: [
+		() => (s: string) => {
+			let n = 0;
+			for (let i = 0; i < s.length; i++) {
+				if ((s.charCodeAt(i) & 0xfc00) !== 0xdc00) n++;
+			}
+			return n;
+		},
+	],
+	mul: [
+		() => (x: number, m: number) => {
+			let q = x / m;
+			return isFinite(q) ? Math.abs(q - Math.round(q)) < 1e-8 : x % m === 0;
+		},
+	],
 	eq: [equal],
 	in: [
 		(eq: (a: unknown, b: unknown) => boolean) => (x: unknown, list: unknown[]) => {
@@ -167,7 +178,9 @@ export const helpers: Record<string, Helper> = {
 	],
 	dup: [
 		(eq: (a: unknown, b: unknown) => boolean) => (list: unknown[]) => {
-			let i = 0, j = 0, n = list.length;
+			let i = 0,
+				j = 0,
+				n = list.length;
 			let seen = new Set<unknown>();
 			for (; i < n; i++) {
 				let v = list[i];
@@ -185,31 +198,43 @@ export const helpers: Record<string, Helper> = {
 		},
 		'eq',
 	],
-	date: [() => {
-		let R = /^(\d{4})-(\d\d)-(\d\d)$/;
-		return (s: string) => {
-			let m = R.exec(s);
-			if (!m) return false;
-			let y = +m[1], mo = +m[2], d = +m[3];
-			let max = mo === 2
-				? (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0) ? 29 : 28)
-				: 30 + ((mo + (mo >> 3)) & 1);
-			return mo >= 1 && mo <= 12 && d >= 1 && d <= max;
-		};
-	}],
-	time: [() => {
-		let R = /^(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:z|([+-])(\d\d):(\d\d))$/i;
-		return (s: string) => {
-			let m = R.exec(s);
-			if (!m) return false;
-			let h = +m[1], mi = +m[2], sec = +m[3];
-			let oh = m[4] ? +m[5] : 0, om = m[4] ? +m[6] : 0;
-			if (h > 23 || mi > 59 || sec > 60 || oh > 23 || om > 59) return false;
-			if (sec < 60) return true;
-			let utc = h * 60 + mi - (m[4] === '-' ? -1 : 1) * (oh * 60 + om);
-			return (utc % 1440 + 1440) % 1440 === 1439;
-		};
-	}],
+	date: [
+		() => {
+			let R = /^(\d{4})-(\d\d)-(\d\d)$/;
+			return (s: string) => {
+				let m = R.exec(s);
+				if (!m) return false;
+				let y = +m[1],
+					mo = +m[2],
+					d = +m[3];
+				let max =
+					mo === 2
+						? y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)
+							? 29
+							: 28
+						: 30 + ((mo + (mo >> 3)) & 1);
+				return mo >= 1 && mo <= 12 && d >= 1 && d <= max;
+			};
+		},
+	],
+	time: [
+		() => {
+			let R = /^(\d\d):(\d\d):(\d\d)(?:\.\d+)?(?:z|([+-])(\d\d):(\d\d))$/i;
+			return (s: string) => {
+				let m = R.exec(s);
+				if (!m) return false;
+				let h = +m[1],
+					mi = +m[2],
+					sec = +m[3];
+				let oh = m[4] ? +m[5] : 0,
+					om = m[4] ? +m[6] : 0;
+				if (h > 23 || mi > 59 || sec > 60 || oh > 23 || om > 59) return false;
+				if (sec < 60) return true;
+				let utc = h * 60 + mi - (m[4] === '-' ? -1 : 1) * (oh * 60 + om);
+				return ((utc % 1440) + 1440) % 1440 === 1439;
+			};
+		},
+	],
 	dt: [
 		(date: (s: string) => boolean, time: (s: string) => boolean) => (s: string) => {
 			let p = s.split(/t/i);
@@ -218,10 +243,12 @@ export const helpers: Record<string, Helper> = {
 		'date',
 		'time',
 	],
-	ipv4: [() => {
-		let R = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
-		return (s: string) => R.test(s);
-	}],
+	ipv4: [
+		() => {
+			let R = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+			return (s: string) => R.test(s);
+		},
+	],
 	ipv6: [
 		(ipv4: (s: string) => boolean) => {
 			let R = /^[\da-f]{1,4}$/i;
@@ -245,73 +272,85 @@ export const helpers: Record<string, Helper> = {
 		},
 		'ipv4',
 	],
-	puny: [() => {
-		let adapt = (delta: number, size: number, first: boolean) => {
-			let k = 0;
-			delta = first ? Math.floor(delta / 700) : delta >> 1;
-			delta += Math.floor(delta / size);
-			for (; delta > 455; k += 36) delta = Math.floor(delta / 35);
-			return Math.floor(k + 36 * delta / (delta + 38));
-		};
-		let threshold = (k: number, bias: number) => k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias;
-		let decode = (s: string) => {
-			let n = 128, i = 0, bias = 72, at = s.lastIndexOf('-');
-			let out: number[] = [];
-			for (let j = 0; j < at; j++) out.push(s.charCodeAt(j));
-			for (let idx = at > 0 ? at + 1 : 0; idx < s.length;) {
-				let prev = i, w = 1, k = 36;
-				for (;; k += 36) {
-					if (idx >= s.length) return;
-					let c = s.charCodeAt(idx++) | 32;
-					let d = c - 48 < 10 ? c - 22 : c - 97 < 26 ? c - 97 : 36;
-					if (d > 35) return;
-					i += d * w;
-					let t = threshold(k, bias);
-					if (d < t) break;
-					w *= 36 - t;
-				}
-				let size = out.length + 1;
-				bias = adapt(i - prev, size, prev === 0);
-				n += Math.floor(i / size);
-				i %= size;
-				if (n > 0x10ffff) return;
-				out.splice(i++, 0, n);
-			}
-			return String.fromCodePoint(...out);
-		};
-		let encode = (s: string) => {
-			let cps = Array.from(s, (c) => c.codePointAt(0)!);
-			let out = String.fromCodePoint(...cps.filter((c) => c < 128));
-			let n = 128, delta = 0, bias = 72, h = out.length, b = h;
-			if (b) out += '-';
-			while (h < cps.length) {
-				let m = Math.min(...cps.filter((c) => c >= n));
-				delta += (m - n) * (h + 1);
-				n = m;
-				for (let c of cps) {
-					if (c < n) delta++;
-					if (c === n) {
-						let q = delta, k = 36;
-						for (;; k += 36) {
-							let t = threshold(k, bias);
-							if (q < t) break;
-							let d = t + (q - t) % (36 - t);
-							out += String.fromCharCode(d + 22 + (d < 26 ? 75 : 0));
-							q = Math.floor((q - t) / (36 - t));
-						}
-						out += String.fromCharCode(q + 22 + (q < 26 ? 75 : 0));
-						bias = adapt(delta, h + 1, h === b);
-						delta = 0;
-						h++;
+	puny: [
+		() => {
+			let adapt = (delta: number, size: number, first: boolean) => {
+				let k = 0;
+				delta = first ? Math.floor(delta / 700) : delta >> 1;
+				delta += Math.floor(delta / size);
+				for (; delta > 455; k += 36) delta = Math.floor(delta / 35);
+				return Math.floor(k + (36 * delta) / (delta + 38));
+			};
+			let threshold = (k: number, bias: number) => (k <= bias ? 1 : k >= bias + 26 ? 26 : k - bias);
+			let decode = (s: string) => {
+				let n = 128,
+					i = 0,
+					bias = 72,
+					at = s.lastIndexOf('-');
+				let out: number[] = [];
+				for (let j = 0; j < at; j++) out.push(s.charCodeAt(j));
+				for (let idx = at > 0 ? at + 1 : 0; idx < s.length;) {
+					let prev = i,
+						w = 1,
+						k = 36;
+					for (; ; k += 36) {
+						if (idx >= s.length) return;
+						let c = s.charCodeAt(idx++) | 32;
+						let d = c - 48 < 10 ? c - 22 : c - 97 < 26 ? c - 97 : 36;
+						if (d > 35) return;
+						i += d * w;
+						let t = threshold(k, bias);
+						if (d < t) break;
+						w *= 36 - t;
 					}
+					let size = out.length + 1;
+					bias = adapt(i - prev, size, prev === 0);
+					n += Math.floor(i / size);
+					i %= size;
+					if (n > 0x10ffff) return;
+					out.splice(i++, 0, n);
 				}
-				delta++;
-				n++;
-			}
-			return out;
-		};
-		return [decode, encode] as const;
-	}],
+				return String.fromCodePoint(...out);
+			};
+			let encode = (s: string) => {
+				let cps = Array.from(s, (c) => c.codePointAt(0)!);
+				let out = String.fromCodePoint(...cps.filter((c) => c < 128));
+				let n = 128,
+					delta = 0,
+					bias = 72,
+					h = out.length,
+					b = h;
+				if (b) out += '-';
+				while (h < cps.length) {
+					let m = Math.min(...cps.filter((c) => c >= n));
+					delta += (m - n) * (h + 1);
+					n = m;
+					for (let c of cps) {
+						if (c < n) delta++;
+						if (c === n) {
+							let q = delta,
+								k = 36;
+							for (; ; k += 36) {
+								let t = threshold(k, bias);
+								if (q < t) break;
+								let d = t + ((q - t) % (36 - t));
+								out += String.fromCharCode(d + 22 + (d < 26 ? 75 : 0));
+								q = Math.floor((q - t) / (36 - t));
+							}
+							out += String.fromCharCode(q + 22 + (q < 26 ? 75 : 0));
+							bias = adapt(delta, h + 1, h === b);
+							delta = 0;
+							h++;
+						}
+					}
+					delta++;
+					n++;
+				}
+				return out;
+			};
+			return [decode, encode] as const;
+		},
+	],
 	host: [
 		(puny: readonly [(s: string) => string | undefined, (s: string) => string]) => {
 			let [decode, encode] = puny;
@@ -319,7 +358,7 @@ export const helpers: Record<string, Helper> = {
 			let FAST =
 				/^(?=.{1,253}$)[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)*$/i;
 			let VALID =
-				/^[\p{Ll}\p{Lo}\p{Lm}\p{Mn}\p{Mc}\p{Nd}\u00b7\u00df\u0375\u03c2\u05f3\u05f4\u06fd\u06fe\u0f0b\u200c\u200d\u3007\u30fb-]+$/u;
+				/^(?:[\p{Ll}\p{Lo}\p{Lm}\p{Mn}\p{Mc}\p{Nd}\u00b7\u00df\u0375\u03c2\u05f3\u05f4\u06fd\u06fe\u0f0b\u3007\u30fb-]|\u200c|\u200d)+$/u;
 			let INVALID = /[\u0640\u07fa\u302e\u302f\u3031-\u3035\u303b]|^\p{M}|^-|-$|^..--/u;
 			let VIRAMA =
 				/[\u094d\u09cd\u0a4d\u0acd\u0b4d\u0bcd\u0c4d\u0ccd\u0d3b\u0d3c\u0d4d\u0dca\u0e3a\u0eba\u0f84\u1039\u103a\u1714\u1715\u1734\u17d2\u1a60\u1b44\u1baa\u1bab\u1bf2\u1bf3\u2d7f\ua806\ua82c\ua8c4\ua953\ua9c0\uaaf6\uabed\u{10a3f}\u{11046}\u{11070}\u{1107f}\u{110b9}\u{11133}\u{11134}\u{111c0}\u{11235}\u{112ea}\u{1134d}\u{11442}\u{114c2}\u{115bf}\u{1163f}\u{116b6}\u{1172b}\u{11839}\u{1193d}\u{1193e}\u{119e0}\u{11a34}\u{11a47}\u{11a99}\u{11c3f}\u{11d44}\u{11d45}\u{11d97}]/u;
@@ -331,19 +370,21 @@ export const helpers: Record<string, Helper> = {
 				/[\u0660-\u0669\u066b\u066c]/.test(c)
 					? 'AN'
 					: /[\d\u06f0-\u06f9]/.test(c)
-					? 'EN'
-					: /[\p{Mn}\p{Me}\u200c\u200d]/u.test(c)
-					? 'NSM'
-					: c === '-'
-					? 'ES'
-					: RTL.test(c)
-					? 'R'
-					: 'L';
+						? 'EN'
+						: /[\p{Mn}\p{Me}\u200c\u200d]/u.test(c)
+							? 'NSM'
+							: c === '-'
+								? 'ES'
+								: RTL.test(c)
+									? 'R'
+									: 'L';
 			let context = (cps: string[]) => {
 				let label = cps.join('');
 				if (/[\u0660-\u0669]/.test(label) && /[\u06f0-\u06f9]/.test(label)) return false;
 				for (let i = 0; i < cps.length; i++) {
-					let c = cps[i], prev = cps[i - 1] || '', next = cps[i + 1] || '';
+					let c = cps[i],
+						prev = cps[i - 1] || '',
+						next = cps[i + 1] || '';
 					if (c === '\u00b7' && (prev !== 'l' || next !== 'l')) return false;
 					if (c === '\u0375' && !/\p{Script=Greek}/u.test(next)) return false;
 					if ((c === '\u05f3' || c === '\u05f4') && !/\p{Script=Hebrew}/u.test(prev)) return false;
@@ -352,10 +393,12 @@ export const helpers: Record<string, Helper> = {
 						!/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(
 							label.replace(/\u30fb/g, ''),
 						)
-					) return false;
+					)
+						return false;
 					if (c === '\u200d' && !VIRAMA.test(prev)) return false;
 					if (c === '\u200c' && !VIRAMA.test(prev)) {
-						let j = i - 1, k = i + 1;
+						let j = i - 1,
+							k = i + 1;
 						while (/\p{Mn}/u.test(cps[j] || '')) j--;
 						while (/\p{Mn}/u.test(cps[k] || '')) k++;
 						if (!JOIN.test(cps[j] || '') || !JOIN.test(cps[k] || '')) return false;
@@ -368,23 +411,32 @@ export const helpers: Record<string, Helper> = {
 				let first = kinds[0];
 				let last = kinds.filter((k) => k !== 'NSM').pop();
 				if (first === 'R') {
-					return !kinds.includes('L') && (last === 'R' || last === 'EN' || last === 'AN') &&
-						!(kinds.includes('EN') && kinds.includes('AN'));
+					return (
+						!kinds.includes('L') &&
+						(last === 'R' || last === 'EN' || last === 'AN') &&
+						!(kinds.includes('EN') && kinds.includes('AN'))
+					);
 				}
-				return first === 'L' && !kinds.includes('R') && !kinds.includes('AN') &&
-					(last === 'L' || last === 'EN');
+				return (
+					first === 'L' &&
+					!kinds.includes('R') &&
+					!kinds.includes('AN') &&
+					(last === 'L' || last === 'EN')
+				);
 			};
 			return (s: string, idn?: 1) => {
 				if (!s.includes('--') && /^[\0-\x7f]*$/.test(s)) return FAST.test(s);
 				if (idn) {
-					s = s.normalize('NFKC').replace(
-						/[\u00ad\u034f\u180b-\u180d\u200b\u2060\ufe00-\ufe0f\ufeff]/g,
-						'',
-					)
-						.replace(/[\u3002\uff0e\uff61]/g, '.').toLowerCase();
+					s = s
+						.normalize('NFKC')
+						// oxlint-disable-next-line no-misleading-character-class
+						.replace(/[\u00ad\u034f\u180b-\u180d\u200b\u2060\ufe00-\ufe0f\ufeff]/g, '')
+						.replace(/[\u3002\uff0e\uff61]/g, '.')
+						.toLowerCase();
 				}
 				let labels = s.split('.');
-				let total = labels.length - 1, rtl = false;
+				let total = labels.length - 1,
+					rtl = false;
 				let ulabels: string[][] = [];
 				for (let l of labels) {
 					let u: string | undefined = l;
@@ -446,11 +498,11 @@ export const helpers: Record<string, Helper> = {
 				let x = (c: string) =>
 					`[\\w.~!$&'()*+,;=${u}${c}-]*(?:%[\\da-f]{2}[\\w.~!$&'()*+,;=${u}${c}-]*)*`;
 				return new RegExp(
-					`^(?:([a-z][a-z\\d+.-]*):)?(?:(//)(?:${
-						x(':')
-					}@)?(?:\\[(?:v[\\da-f]+\\.[\\w.~!$&'()*+,;=:-]+|([^\\]]*))\\]|${x('')})(?::\\d*)?)?(${
-						x(':@/')
-					})(?:\\?${x(':@/?' + p)})?(?:#${x(':@/?')})?$`,
+					`^(?:([a-z][a-z\\d+.-]*):)?(?:(//)(?:${x(
+						':',
+					)}@)?(?:\\[(?:v[\\da-f]+\\.[\\w.~!$&'()*+,;=:-]+|([^\\]]*))\\]|${x('')})(?::\\d*)?)?(${x(
+						':@/',
+					)})(?:\\?${x(':@/?' + p)})?(?:#${x(':@/?')})?$`,
 					u ? 'iu' : 'i',
 				);
 			};
@@ -473,13 +525,15 @@ export const helpers: Record<string, Helper> = {
 		},
 		'ipv6',
 	],
-	re: [() => (s: string) => {
-		try {
-			return !!new RegExp(s, 'u');
-		} catch {
-			return false;
-		}
-	}],
+	re: [
+		() => (s: string) => {
+			try {
+				return !!new RegExp(s, 'u');
+			} catch {
+				return false;
+			}
+		},
+	],
 };
 
 /**
@@ -548,7 +602,7 @@ function use(c: Context, name: string): string {
 function hoist(c: Context, expr: string): string {
 	let id = c.consts.get(expr);
 	if (!id) {
-		c.consts.set(expr, id = 'c' + ++c.n);
+		c.consts.set(expr, (id = 'c' + ++c.n));
 		c.code += `const ${id}=${expr};`;
 	}
 	return id;
@@ -559,7 +613,8 @@ function escape(key: string): string {
 }
 
 function location(c: Context, path: Segment[]): string {
-	let s = '', out: string[] = [];
+	let s = '',
+		out: string[] = [];
 	for (let x of path) {
 		if (typeof x === 'string') {
 			s += '/' + x;
@@ -589,15 +644,16 @@ function call(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m:
 
 function fn(c: Context, s: Schema, m: Mode): string {
 	let names = c.fns.get(s);
-	if (!names) c.fns.set(s, names = []);
+	if (!names) c.fns.set(s, (names = []));
 	if (names[m]) return names[m];
-	let name = names[m] = 'aft'[m] + ++c.n;
+	let name = (names[m] = 'aft'[m] + ++c.n);
 	let body = gen(c, s, 'x', [], [], m);
-	c.code += m === ALL
-		? `function ${name}(x){var E,r;${body}return E}`
-		: m === FIRST
-		? `function ${name}(x){var r;${body}}`
-		: `function ${name}(x){${body}return true}`;
+	c.code +=
+		m === ALL
+			? `function ${name}(x){var E,r;${body}return E}`
+			: m === FIRST
+				? `function ${name}(x){var r;${body}}`
+				: `function ${name}(x){${body}return true}`;
 	return name;
 }
 
@@ -670,7 +726,7 @@ function scan(c: Context, s: unknown, base: string) {
 		let url = new URL(s.$id, base);
 		let anchor = url.hash.slice(1);
 		url.hash = '';
-		register(c, base = url.href, s);
+		register(c, (base = url.href), s);
 		if (anchor) register(c, base + '#' + anchor, s);
 	}
 	c.bases.set(s, base);
@@ -678,27 +734,30 @@ function scan(c: Context, s: unknown, base: string) {
 	if (typeof s.$dynamicAnchor === 'string') register(c, base + '#' + s.$dynamicAnchor, s);
 
 	let k: keyof Node, v: unknown;
-	for (
-		k of [
-			'not',
-			'items',
-			'additionalItems',
-			'contains',
-			'additionalProperties',
-			'propertyNames',
-		] as const
-	) {
+	for (k of [
+		'not',
+		'items',
+		'additionalItems',
+		'contains',
+		'additionalProperties',
+		'propertyNames',
+	] as const) {
 		v = s[k];
-		if (Array.isArray(v)) { for (v of v) scan(c, v, base); }
-		else scan(c, v, base);
+		if (Array.isArray(v)) {
+			for (v of v) scan(c, v, base);
+		} else scan(c, v, base);
 	}
 	for (k of ['allOf', 'anyOf', 'oneOf', 'prefixItems'] as const) {
 		v = s[k];
-		if (Array.isArray(v)) { for (v of v) scan(c, v, base); }
+		if (Array.isArray(v)) {
+			for (v of v) scan(c, v, base);
+		}
 	}
 	for (k of ['properties', 'patternProperties', '$defs', 'definitions'] as const) {
 		v = s[k];
-		if (isRecord(v)) { for (let key in v) scan(c, v[key], base); }
+		if (isRecord(v)) {
+			for (let key in v) scan(c, v[key], base);
+		}
 	}
 }
 
@@ -733,7 +792,11 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	let test = (list: Schema[]) => list.map((sub) => `${fn(c, sub, TEST)}(${x})`);
 
 	let y: string, i: string, k: string, sub: string, v: unknown;
-	let any = '', num = '', str = '', arr = '', obj = '';
+	let any = '',
+		num = '',
+		str = '',
+		arr = '',
+		obj = '';
 
 	if (typeof s.$ref === 'string') {
 		any += call(c, resolve(c, s, s.$ref), x, ip, [...kp, '$ref'], m);
@@ -759,7 +822,9 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 	if (s.oneOf) {
 		any += rule(
-			`${test(s.oneOf).map((call) => `(${call}?1:0)`).join('+')}!==1`,
+			`${test(s.oneOf)
+				.map((call) => `(${call}?1:0)`)
+				.join('+')}!==1`,
 			'oneOf',
 			'must match exactly one schema in oneOf',
 		);
@@ -806,9 +871,10 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	}
 
 	if (typeof (v = s.format) === 'string' && (sub = FORMATS[v])) {
-		sub = sub[0] === '/'
-			? `${hoist(c, sub)}.test(${x})`
-			: sub.replace(/\$(\w+)/, (_, h) => use(c, h)).replace('#', x);
+		sub =
+			sub[0] === '/'
+				? `${hoist(c, sub)}.test(${x})`
+				: sub.replace(/\$(\w+)/, (_, h) => use(c, h)).replace('#', x);
 		str += rule('!' + sub, 'format', `must match format "${v}"`);
 	}
 
@@ -857,9 +923,11 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 		let min = typeof s.minContains === 'number' ? s.minContains : 1;
 		let n = 'n' + ++c.n;
 		i = 'i' + ++c.n;
-		arr += `let ${n}=0;for(let ${i}=0;${i}<${x}.length;${i}++)if(${
-			fn(c, s.contains, TEST)
-		}(${x}[${i}]))${n}++;`;
+		arr += `let ${n}=0;for(let ${i}=0;${i}<${x}.length;${i}++)if(${fn(
+			c,
+			s.contains,
+			TEST,
+		)}(${x}[${i}]))${n}++;`;
 		if (min > 0) {
 			arr += rule(
 				`${n}<${min}`,
@@ -889,7 +957,8 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 		y = 'y' + ++c.n;
 		sub = gen(c, props[k], y, [...ip, escape(k)], [...kp, 'properties', escape(k)], m);
 		if (required.delete(k)) {
-			obj += `const ${y}=${property(c, x, k)};` +
+			obj +=
+				`const ${y}=${property(c, x, k)};` +
 				rule(`${y}===undefined`, 'required', `must have required property "${k}"`) +
 				(sub ? `else{${sub}}` : '');
 		} else if (sub) {
@@ -927,13 +996,15 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 			let known = Object.keys(props);
 			let cond = [
 				known.length &&
-				`!(${
-					known.length < 9
-						? known.map((key) => `${k}===${JSON.stringify(key)}`).join('||')
-						: `${hoist(c, `new Set(${JSON.stringify(known)})`)}.has(${k})`
-				})`,
+					`!(${
+						known.length < 9
+							? known.map((key) => `${k}===${JSON.stringify(key)}`).join('||')
+							: `${hoist(c, `new Set(${JSON.stringify(known)})`)}.has(${k})`
+					})`,
 				hit && '!' + hit,
-			].filter(Boolean).join('&&');
+			]
+				.filter(Boolean)
+				.join('&&');
 			sub = gen(c, extra, y, [...ip, [k, true]], [...kp, 'additionalProperties'], m);
 			if (sub) body += cond ? `if(${cond}){${sub}}` : sub;
 		}
@@ -947,11 +1018,17 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	let only = types && types.length === 1 ? types[0] : '';
 	let out = any;
 
-	for (let [type, code] of [['number', num], ['string', str], ['array', arr], ['object', obj]]) {
+	for (let [type, code] of [
+		['number', num],
+		['string', str],
+		['array', arr],
+		['object', obj],
+	]) {
 		if (code) {
-			out += only === type || (type === 'number' && only === 'integer')
-				? code
-				: `if(${type === 'number' ? `typeof ${x}=="number"` : check(type, x)}){${code}}`;
+			out +=
+				only === type || (type === 'number' && only === 'integer')
+					? code
+					: `if(${type === 'number' ? `typeof ${x}=="number"` : check(type, x)}){${code}}`;
 		}
 	}
 

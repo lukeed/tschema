@@ -1,9 +1,9 @@
-import * as t from './mod.ts';
+import * as t from './mod';
 
 declare function assert<T>(value: T): void;
 
-type Equal<A, B> = (<X>() => X extends A ? 1 : 2) extends (<X>() => X extends B ? 1 : 2) ? true
-	: false;
+type Equal<A, B> =
+	(<X>() => X extends A ? 1 : 2) extends <X>() => X extends B ? 1 : 2 ? true : false;
 declare function equal<A, B>(...check: Equal<A, B> extends true ? [] : [never]): void;
 
 const NULL = null;
@@ -333,7 +333,7 @@ let o4 = t.object();
 type O4 = t.Infer<typeof o4>;
 declare let O4: O4;
 
-// deno-lint-ignore ban-types
+// oxlint-disable-next-line typescript/no-empty-object-type
 assert<{}>(O4);
 assert<Record<string, unknown>>(O4);
 
@@ -349,29 +349,28 @@ assert<O4>({
 // OBJECT / `required` match keys
 // ---
 
-let _ = t.object({
-	name: t.string(),
-	age: t.integer(),
-}, {
-	required: [
-		'name',
-		// @ts-expect-error; not a key
-		'foobar',
-	],
-});
+let _ = t.object(
+	{
+		name: t.string(),
+		age: t.integer(),
+	},
+	{
+		required: [
+			'name',
+			// @ts-expect-error; not a key
+			'foobar',
+		],
+	},
+);
 
 // ---
 // OBJECT / optional keys
 // ---
 
 let o5 = t.object({
-	uid: t.optional(
-		t.integer(),
-	),
+	uid: t.optional(t.integer()),
 	name: t.string(),
-	age: t.optional(
-		t.integer(),
-	),
+	age: t.optional(t.integer()),
 });
 
 declare let O5: t.Infer<typeof o5>;
@@ -419,9 +418,7 @@ assert<typeof O5>({
 let o6 = t.readonly(
 	t.object({
 		name: t.string(),
-		age: t.optional(
-			t.integer(),
-		),
+		age: t.optional(t.integer()),
 	}),
 );
 
@@ -485,9 +482,7 @@ assert<A1>([] as unknown[]);
 // ARRAY / readonly
 // ---
 
-let a2 = t.readonly(
-	t.array(t.string()),
-);
+let a2 = t.readonly(t.array(t.string()));
 
 type A2 = t.Infer<typeof a2>;
 declare let A2: A2;
@@ -514,24 +509,30 @@ let a3 = t.array(
 type A3 = t.Infer<typeof a3>;
 declare let A3: A3;
 
-assert<{
-	name: string;
-	age: number;
-}[]>(A3);
+assert<
+	{
+		name: string;
+		age: number;
+	}[]
+>(A3);
 
 // @ts-expect-error; not array
 assert<A3>(NUMBER);
 
-assert<A3>([{
-	name: STRING,
-	age: NUMBER,
-}]);
+assert<A3>([
+	{
+		name: STRING,
+		age: NUMBER,
+	},
+]);
 
-assert<A3>([{
-	name: STRING,
-	// @ts-expect-error; type
-	age: STRING,
-}]);
+assert<A3>([
+	{
+		name: STRING,
+		// @ts-expect-error; type
+		age: STRING,
+	},
+]);
 
 assert<A3>([
 	// @ts-expect-error; missing key
@@ -558,10 +559,12 @@ let a4 = t.array(
 type A4 = t.Infer<typeof a4>;
 declare let A4: A4;
 
-assert<{
-	readonly name: string;
-	readonly age: number;
-}[]>(A4);
+assert<
+	{
+		readonly name: string;
+		readonly age: number;
+	}[]
+>(A4);
 
 // @ts-expect-error; readonly object
 A4[0].age = NUMBER;
@@ -569,16 +572,20 @@ A4[0].age = NUMBER;
 // array itself is not readonly
 A4[0] = { name: STRING, age: NUMBER };
 
-assert<A4>([{
-	name: STRING,
-	age: NUMBER,
-}]);
+assert<A4>([
+	{
+		name: STRING,
+		age: NUMBER,
+	},
+]);
 
-assert<A4>([{
-	name: STRING,
-	// @ts-expect-error; type
-	age: STRING,
-}]);
+assert<A4>([
+	{
+		name: STRING,
+		// @ts-expect-error; type
+		age: STRING,
+	},
+]);
 
 assert<A4>([
 	// @ts-expect-error; missing key
@@ -616,9 +623,7 @@ A5[0].name = STRING;
 // ARRAY / ENUM
 // ---
 
-let a6 = t.array(
-	t.enum(['UP', 'DOWN', 'LEFT', 'RIGHT']),
-);
+let a6 = t.array(t.enum(['UP', 'DOWN', 'LEFT', 'RIGHT']));
 
 type A6 = t.Infer<typeof a6>;
 declare let A6: A6;
@@ -814,9 +819,7 @@ declare let D1: t.Infer<typeof d1>;
 assert<{ [key: string]: number }>(D1);
 assert<Record<string, number>>(D1);
 
-let d2 = t.dict(
-	t.array(t.string()),
-);
+let d2 = t.dict(t.array(t.string()));
 
 declare let D2: t.Infer<typeof d2>;
 assert<Record<string, string[]>>(D2);
@@ -855,13 +858,16 @@ let x7 = t.object({
 	d: t.tuple([t.string(), t.integer()]),
 	e: t.readonly(t.object({ f: t.null() })),
 });
-equal<t.Infer<typeof x7>, {
-	a: unknown;
-	b?: unknown[];
-	c: Record<string, string>;
-	d: [string, number];
-	e: { readonly f: null };
-}>();
+equal<
+	t.Infer<typeof x7>,
+	{
+		a: unknown;
+		b?: unknown[];
+		c: Record<string, string>;
+		d: [string, number];
+		e: { readonly f: null };
+	}
+>();
 
 let x8 = t.partial(t.object({ a: t.string(), b: t.optional(t.number()) }));
 equal<t.Infer<typeof x8>, { a?: string; b?: number }>();
@@ -877,7 +883,8 @@ let r1 = t.recursive('Tree', (self) =>
 	t.object({
 		value: t.string(),
 		children: t.array(self),
-	}));
+	}),
+);
 
 type R1 = t.Infer<typeof r1>;
 type Tree = { value: string; children: Tree[] };
@@ -894,7 +901,8 @@ let r2 = t.recursive('List', (list) =>
 		head: t.integer(),
 		tail: t.any(t.null(), list),
 		tree: t.optional(r1),
-	}));
+	}),
+);
 
 type R2 = t.Infer<typeof r2>;
 declare let R2: R2;
@@ -903,14 +911,18 @@ let _r2b: string | undefined = R2.tail?.tree?.children[0].value;
 
 let r3 = t.recursive('Outer', (outer) =>
 	t.object({
-		inner: t.optional(t.recursive('Inner', (inner) =>
-			t.object({
-				up: t.optional(outer),
-				self: t.optional(inner),
-				name: t.string(),
-			}))),
+		inner: t.optional(
+			t.recursive('Inner', (inner) =>
+				t.object({
+					up: t.optional(outer),
+					self: t.optional(inner),
+					name: t.string(),
+				}),
+			),
+		),
 		id: t.integer(),
-	}));
+	}),
+);
 
 declare let R3: t.Infer<typeof r3>;
 let _r3a: number | undefined = R3.inner?.up?.id;
@@ -932,9 +944,6 @@ let _d0a: string = D0.a.a.a.a.a.v;
 let _d0b: string = D0.b[0].tup[1].list[0].a.v;
 let _d0c: boolean = D0.c!.d.key.x.y;
 
-function generic<T extends t.Type>(schema: T, input: unknown): t.Infer<T> | undefined {
-	let output: t.Infer<T> | undefined;
-	return schema && input ? output : undefined;
-}
+declare function generic<T extends t.Type>(schema: T, input: unknown): t.Infer<T> | undefined;
 
 let _d0d: string | undefined = generic(d0, {})?.c?.a.a.a.a.v;

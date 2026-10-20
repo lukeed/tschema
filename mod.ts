@@ -1,12 +1,11 @@
 /**
  * @module
  */
-type Prettify<T> =
-	& {
-		[K in keyof T]: T[K];
-	}
-	// deno-lint-ignore ban-types
-	& {};
+type Prettify<T> = {
+	[K in keyof T]: T[K];
+} &
+	// oxlint-disable-next-line typescript/no-empty-object-type
+	{};
 
 /**
  * @internal
@@ -14,7 +13,7 @@ type Prettify<T> =
  */
 type Scope = [string, unknown][];
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  * Find the inferred type of a {@link recursive} identifier.
@@ -24,7 +23,7 @@ type Lookup<S extends Scope, I> =
 		? K extends I ? V : Lookup<R, I>
 		: unknown;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  * Infer the members of an `allOf` composition as an intersection.
@@ -34,7 +33,7 @@ type Intersect<T, S extends Scope> =
 		? I
 		: never;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  * Infer the {@link object} type of the `properties` definitions.
@@ -44,7 +43,7 @@ type Props<P, S extends Scope> = string extends keyof P ? Record<string, unknown
 	& { [K in keyof P as P[K] extends Required<P>[K] ? P[K] extends _optional<infer _> ? K : never : K]?: Resolve<Exclude<P[K], undefined>, S> }
 >;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  * Infer the {@link tuple} type of the `prefixItems` definitions.
@@ -53,14 +52,14 @@ type Items<P extends readonly unknown[], S extends Scope> = {
 	-readonly [K in keyof P]: Resolve<P[K], S>;
 };
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  * Infer a {@link recursive} definition, exposing its own identifier.
  */
 type Recurse<T, I extends string, S extends Scope> = Base<T, [[I, Recurse<T, I, S>], ...S]>;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  */
@@ -68,7 +67,7 @@ type Resolve<T, S extends Scope> =
 	T extends { readOnly: true } ? Readonly<Unwrap<T, S>>
 	: Unwrap<T, S>;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  */
@@ -76,7 +75,7 @@ type Unwrap<T, S extends Scope> =
 	T extends { $id: infer I extends string } ? Recurse<T, I, S>
 	: Base<T, S>;
 
-// deno-fmt-ignore
+// prettier-ignore
 /**
  * @internal
  */
@@ -263,7 +262,7 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
 function _partial<P extends Properties>(
 	input: _object<P>,
 ): _object<{ [K in keyof P]: _optional<P[K]> }> {
-	// deno-lint-ignore no-unused-vars
+	// oxlint-disable-next-line no-unused-vars
 	let { required, ...schema } = input;
 	// @ts-expect-error; generic `default` types are not comparable
 	return schema;
@@ -328,9 +327,7 @@ type _constant<V extends Value> = Annotations & {
  * });
  * ```
  */
-function _constant<
-	const V extends Value,
->(
+function _constant<const V extends Value>(
 	value: V,
 	options?: Omit<_constant<V>, 'const'>,
 ): _constant<V> {
@@ -364,12 +361,7 @@ type _enum<V extends Value> = Annotations & {
  * });
  * ```
  */
-function _enum<
-	const V extends Value,
->(
-	choices: V[],
-	options?: Omit<_enum<V>, 'enum'>,
-): _enum<V> {
+function _enum<const V extends Value>(choices: V[], options?: Omit<_enum<V>, 'enum'>): _enum<V> {
 	return {
 		enum: choices,
 		...options,
@@ -445,18 +437,13 @@ type _string<E extends string = string> = Annotations & {
  * //-> "foo" | "bar"
  * ```
  */
-function _string<
-	const V extends string,
-	F extends _string<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _string<const V extends string, F extends _string<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _string<
-	F extends _string,
->(options?: Omit<F, 'type'>): F;
+function _string<F extends _string>(options?: Omit<F, 'type'>): F;
 
-function _string(
-	options?: Omit<_string, 'type'>,
-): _string {
+function _string(options?: Omit<_string, 'type'>): _string {
 	return { ...options, type: 'string' };
 }
 
@@ -495,18 +482,13 @@ type _number<E extends number = number> = Annotations & {
  * //-> 0 | 1 | 12.8 | 101.3
  * ```
  */
-function _number<
-	const V extends number,
-	F extends _number<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _number<const V extends number, F extends _number<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _number<
-	F extends _number,
->(options?: Omit<F, 'type'>): F;
+function _number<F extends _number>(options?: Omit<F, 'type'>): F;
 
-function _number(
-	options?: Omit<_number, 'type'>,
-): _number {
+function _number(options?: Omit<_number, 'type'>): _number {
 	return { ...options, type: 'number' };
 }
 
@@ -538,18 +520,13 @@ type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
  * //-> 0 | 1 | 2 | 3
  * ```
  */
-function _integer<
-	const V extends number,
-	F extends _integer<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _integer<const V extends number, F extends _integer<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _integer<
-	F extends _integer,
->(options?: Omit<F, 'type'>): F;
+function _integer<F extends _integer>(options?: Omit<F, 'type'>): F;
 
-function _integer(
-	options?: Omit<_integer, 'type'>,
-): _integer {
+function _integer(options?: Omit<_integer, 'type'>): _integer {
 	return { ...options, type: 'integer' };
 }
 
@@ -585,10 +562,7 @@ type _array<T> = Annotations & {
  * //-> string[]
  * ```
  */
-function _array<
-	const I extends Type,
-	F extends _array<I>,
->(
+function _array<const I extends Type, F extends _array<I>>(
 	items?: I,
 	options?: Omit<F, 'type' | 'items'>,
 ): F {
@@ -634,9 +608,7 @@ type _tuple<T> = Annotations & {
  * //-> [number, string]
  * ```
  */
-function _tuple<
-	const M extends Type[],
->(
+function _tuple<const M extends Type[]>(
 	members?: M,
 	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
 ): _tuple<M> {
@@ -677,10 +649,7 @@ type _dict<T extends Type> = Annotations & {
  * //-> Record<string, number>
  * ```
  */
-function _dict<
-	const I extends Type,
-	F extends _dict<I>,
->(
+function _dict<const I extends Type, F extends _dict<I>>(
 	value: I,
 	options?: Omit<F, 'type' | 'additionalProperties'>,
 ): F {
@@ -801,10 +770,7 @@ type _object<T extends Properties = Properties> = Annotations & {
  * //->   }
  * //-> }
  */
-function _object<
-	P extends Properties,
-	T extends _object<P>,
->(
+function _object<P extends Properties, T extends _object<P>>(
 	properties?: P,
 	options?: Omit<T, 'type' | 'properties'>,
 ): T {
@@ -979,10 +945,7 @@ type _recursive<I extends string, T extends Type> = T & {
  * //-> }
  * ```
  */
-function _recursive<
-	const I extends string,
-	T extends Type,
->(
+function _recursive<const I extends string, T extends Type>(
 	id: I,
 	define: (self: _self<I>) => T,
 ): _recursive<I, T> {
@@ -992,7 +955,7 @@ function _recursive<
 	};
 }
 
-// deno-fmt-ignore
+// prettier-ignore
 export {
 	// composites
 	_all as all,
@@ -1018,4 +981,4 @@ export {
 	_tuple as tuple,
 	_unknown as unknown,
 	_dict as dict,
-}
+};

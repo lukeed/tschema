@@ -1,9 +1,10 @@
 /**
  * Load the JSON-Schema-Test-Suite groups that `tschema/validate` supports.
  */
-import { join } from '@std/path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
-import type { Type } from '../mod.ts';
+import type { Type } from '../mod';
 
 export type Case = {
 	description: string;
@@ -17,7 +18,7 @@ export type Group = {
 	tests: Case[];
 };
 
-const DIR = join(import.meta.dirname!, '../suite/tests/draft2020-12');
+const DIR = join(import.meta.dir, '../suite/tests/draft2020-12');
 
 const FILES = [
 	'additionalProperties',
@@ -100,8 +101,11 @@ function unsupported(schema: unknown): boolean {
 	for (let [k, v] of Object.entries(schema)) {
 		if (UNSUPPORTED.has(k)) return true;
 		if (
-			k === '$ref' && typeof v === 'string' && /^https?:\/\/(localhost|json-schema\.org)\b/.test(v)
-		) return true;
+			k === '$ref' &&
+			typeof v === 'string' &&
+			/^https?:\/\/(localhost|json-schema\.org)\b/.test(v)
+		)
+			return true;
 		if (k !== 'const' && k !== 'enum' && k !== 'default' && unsupported(v)) return true;
 	}
 	return false;
@@ -110,7 +114,7 @@ function unsupported(schema: unknown): boolean {
 export async function load(): Promise<[file: string, groups: Group[]][]> {
 	let out: [string, Group[]][] = [];
 	for (let file of FILES) {
-		let groups: Group[] = JSON.parse(await Deno.readTextFile(join(DIR, file + '.json')));
+		let groups: Group[] = JSON.parse(await readFile(join(DIR, file + '.json'), 'utf8'));
 		out.push([file, groups.filter((g) => typeof g.schema !== 'boolean' && !unsupported(g.schema))]);
 	}
 	return out;
