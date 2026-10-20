@@ -5,3 +5,4 @@ node_modules
 /jsr
 /coverage
 *.lcov
+/bench/dist

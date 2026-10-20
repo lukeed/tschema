@@ -8,10 +8,12 @@
 		"strict": true,
 		"noEmit": true,
 		"skipLibCheck": true,
-		"isolatedDeclarations": true,
-		"declaration": true,
-		"verbatimModuleSyntax": true
+		"verbatimModuleSyntax": true,
+		"paths": {
+			"tschema": ["./mod.ts"],
+			"tschema/validate": ["./validate.ts"]
+		}
 	},
 	"include": ["*.ts", "scripts", "bench"],
-	"exclude": ["npm", "jsr", "suite", "node_modules"]
+	"exclude": ["npm", "jsr", "suite", "node_modules", "bench/dist"]
 }

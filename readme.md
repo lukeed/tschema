@@ -234,23 +234,32 @@ bun run bench
 
 ### Validation
 
+The `(aot)` rows use the output of the [compiler plugin](#compiler). They run the same generated code, but skip the schema lookup and never compile at runtime.
+
 | benchmark | bun | node |
 | --- | --- | --- |
 | **all errors (valid)** | | |
-| tschema/validate | 155.8 ns | 149.6 ns |
-| ajv (allErrors) | 188.4 ns | 245.7 ns |
+| tschema/validate | 150.4 ns | 147.2 ns |
+| tschema/validate (aot) | 152.7 ns | 140.0 ns |
+| ajv (allErrors) | 181.3 ns | 259.3 ns |
 | **first error (valid)** | | |
-| tschema/parse | 151.8 ns | 145.8 ns |
-| ajv | 206.1 ns | 276.9 ns |
+| tschema/parse | 143.8 ns | 147.0 ns |
+| tschema/parse (aot) | 148.2 ns | 140.8 ns |
+| ajv | 189.3 ns | 236.3 ns |
 | **all errors (invalid)** | | |
-| tschema/validate | 154.7 ns | 129.9 ns |
-| ajv (allErrors) | 211.7 ns | 207.2 ns |
+| tschema/validate | 151.8 ns | 126.1 ns |
+| tschema/validate (aot) | 146.9 ns | 126.2 ns |
+| ajv (allErrors) | 216.6 ns | 213.6 ns |
 | **first error (invalid)** | | |
-| tschema/parse | 9.2 ns | 9.4 ns |
-| ajv | 32.0 ns | 49.4 ns |
+| tschema/parse | 10.5 ns | 9.6 ns |
+| tschema/parse (aot) | 8.1 ns | 5.1 ns |
+| ajv | 33.5 ns | 50.2 ns |
 | **compile** | | |
-| tschema/validate | 103.8 µs | 81.0 µs |
-| ajv | 5.92 ms | 4.82 ms |
+| tschema/validate | 107.5 µs | 77.0 µs |
+| tschema/validate (aot) | – | – |
+| ajv | 5.94 ms | 4.92 ms |
+
+The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 5.0 kB gzip with the plugin and 7.9 kB without it.
 
 ## License
 
