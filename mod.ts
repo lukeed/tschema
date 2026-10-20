@@ -46,6 +46,22 @@ type Props<P, S extends Scope> = string extends keyof P ? Record<string, unknown
 // prettier-ignore
 /**
  * @internal
+ * Infer the {@link object} type of the `properties` definitions, using an explicit `required` list.
+ */
+type Fields<P, R, S extends Scope> = string extends keyof P ? Record<string, unknown> : Prettify<
+	& { [K in keyof P as K extends R ? K : never]: Resolve<P[K], S> }
+	& { [K in keyof P as K extends R ? never : K]?: Resolve<Exclude<P[K], undefined>, S> }
+>;
+
+/**
+ * @internal
+ * The inferred {@link object} type, with or without an explicit `required` list.
+ */
+type Shape<P, R> = R extends readonly unknown[] ? Fields<P, R[number], []> : Props<P, []>;
+
+// prettier-ignore
+/**
+ * @internal
  * Infer the {@link tuple} type of the `prefixItems` definitions.
  */
 type Items<P extends readonly unknown[], S extends Scope> = {
@@ -97,7 +113,8 @@ type Base<T, S extends Scope> =
 			: Items<P, S>
 	: T extends { type: 'array' } ? unknown[]
 	: T extends { type: 'object'; properties?: infer P }
-		? 'properties' extends keyof T ? Props<P, S>
+		? 'properties' extends keyof T
+			? T extends { required: readonly (infer R)[] } ? Fields<P, R, S> : Props<P, S>
 		: T extends { additionalProperties: infer A extends Type } ? Record<string, Resolve<A, S>>
 		: Record<string, unknown>
 	: T extends readonly Type[] ? Items<T, S>
@@ -680,7 +697,7 @@ type Properties = {
 type _object<T extends Properties = Properties> = Annotations & {
 	type: 'object';
 	properties?: T;
-	required?: (keyof T)[];
+	required?: readonly (keyof T)[];
 	patternProperties?: Record<string, Type>;
 	additionalProperties?: Type | boolean;
 	propertyNames?: Partial<_string>;
@@ -770,10 +787,18 @@ type _object<T extends Properties = Properties> = Annotations & {
  * //->   }
  * //-> }
  */
-function _object<P extends Properties, T extends _object<P>>(
+function _object<
+	P extends Properties,
+	T extends _object<P>,
+	const R extends readonly (keyof P)[] | undefined = undefined,
+>(
 	properties?: P,
-	options?: Omit<T, 'type' | 'properties'>,
-): T {
+	options?: Omit<T, 'type' | 'properties' | 'required' | 'default' | 'examples'> & {
+		required?: R;
+		default?: Shape<P, R>;
+		examples?: Shape<P, R>[];
+	},
+): R extends readonly unknown[] ? Omit<T, 'required'> & { required: R } : T {
 	let o = {
 		...options,
 		type: 'object',
@@ -783,24 +808,23 @@ function _object<P extends Properties, T extends _object<P>>(
 	if (properties) {
 		o.additionalProperties ||= false;
 
-		if (!o.required) {
-			let k: keyof P;
-			let arr: (keyof P)[] = [];
-			for (k in properties) {
-				if (properties[k][OPTIONAL]) {
-					// NOTE: delete = deopt
-					properties[k][OPTIONAL] = undefined;
-				} else {
-					arr.push(k);
-				}
+		let k: keyof P;
+		let arr: (keyof P)[] = [];
+		for (k in properties) {
+			if (properties[k][OPTIONAL]) {
+				// NOTE: delete = deopt
+				properties[k][OPTIONAL] = undefined;
+			} else {
+				arr.push(k);
 			}
-			if (arr.length > 0) {
-				o.required = arr;
-			}
+		}
+
+		if (!o.required && arr.length > 0) {
+			o.required = arr;
 		}
 	}
 
-	return o;
+	return o as R extends readonly unknown[] ? Omit<T, 'required'> & { required: R } : T;
 }
 
 // compositions
