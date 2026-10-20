@@ -1,8 +1,8 @@
 import { assert as ok, assertEquals, assertThrows } from '@std/assert';
 import { describe, it } from '@std/testing/bdd';
-import { join } from '@std/path';
 import * as t from './mod.ts';
 import { assert, parse, validate, ValidationError } from './validate.ts';
+import * as suite from './scripts/suite.ts';
 
 import type { Type } from './mod.ts';
 
@@ -183,122 +183,14 @@ describe('assert', () => {
 	});
 });
 
-type Case = {
-	description: string;
-	data: unknown;
-	valid: boolean;
-};
-
-type Group = {
-	description: string;
-	schema: Type;
-	tests: Case[];
-};
-
-const DIR = join(import.meta.dirname!, 'suite/tests/draft2020-12');
-
-const FILES = [
-	'additionalProperties',
-	'allOf',
-	'anchor',
-	'anyOf',
-	'boolean_schema',
-	'const',
-	'contains',
-	'enum',
-	'exclusiveMaximum',
-	'exclusiveMinimum',
-	'infinite-loop-detection',
-	'items',
-	'maxContains',
-	'maximum',
-	'maxItems',
-	'maxLength',
-	'maxProperties',
-	'minContains',
-	'minimum',
-	'minItems',
-	'minLength',
-	'minProperties',
-	'multipleOf',
-	'not',
-	'oneOf',
-	'pattern',
-	'patternProperties',
-	'prefixItems',
-	'properties',
-	'propertyNames',
-	'ref',
-	'required',
-	'type',
-	'uniqueItems',
-	'optional/bignum',
-	'optional/ecmascript-regex',
-	'optional/float-overflow',
-	'optional/non-bmp-regex',
-	...[
-		'date',
-		'date-time',
-		'duration',
-		'email',
-		'hostname',
-		'idn-email',
-		'idn-hostname',
-		'ipv4',
-		'ipv6',
-		'iri',
-		'iri-reference',
-		'json-pointer',
-		'regex',
-		'relative-json-pointer',
-		'time',
-		'uri',
-		'uri-reference',
-		'uri-template',
-		'uuid',
-	].map((name) => `optional/format/${name}`),
-];
-
-const UNSUPPORTED = new Set([
-	'$dynamicRef',
-	'$dynamicAnchor',
-	'$recursiveRef',
-	'$vocabulary',
-	'dependentRequired',
-	'dependentSchemas',
-	'if',
-	'then',
-	'else',
-	'unevaluatedItems',
-	'unevaluatedProperties',
-]);
-
-function unsupported(schema: unknown): boolean {
-	if (typeof schema !== 'object' || schema === null) return false;
-	for (let [k, v] of Object.entries(schema)) {
-		if (UNSUPPORTED.has(k)) return true;
-		if (
-			k === '$ref' && typeof v === 'string' && /^https?:\/\/(localhost|json-schema\.org)\b/.test(v)
-		) return true;
-		if (k !== 'const' && k !== 'enum' && k !== 'default' && unsupported(v)) return true;
-	}
-	return false;
-}
-
-for (let file of FILES) {
-	let groups: Group[] = JSON.parse(await Deno.readTextFile(join(DIR, file + '.json')));
-
+for (let [file, groups] of await suite.load()) {
 	describe(file, () => {
 		for (let group of groups) {
-			if (typeof group.schema === 'boolean' || unsupported(group.schema)) continue;
 			for (let test of group.tests) {
 				it(`${group.description} :: ${test.description}`, () => {
 					let result = validate(group.schema, test.data);
 					assertEquals(result.ok, test.valid, 'validate');
-					assertEquals(
-						result.ok ? undefined : result.errors.length > 0,
-						test.valid ? undefined : true,
-					);
+					assertEquals(result.ok || result.errors.length > 0, true);
 					assertEquals(
 						parse(group.schema, test.data) !== undefined || test.data === undefined,
 						test.valid,

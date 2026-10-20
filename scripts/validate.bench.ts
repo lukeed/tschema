@@ -1,4 +1,4 @@
-import Ajv from 'ajv/dist/2020.js';
+import { Ajv2020 as Ajv } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import * as t from '../mod.ts';
 import * as v from '../validate.ts';

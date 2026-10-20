@@ -33,6 +33,9 @@
 		"ajv": "npm:ajv@^8.17",
 		"ajv-formats": "npm:ajv-formats@^3.0",
 		"oxc-transform": "npm:oxc-transform@^0.23",
+		"rolldown": "npm:rolldown@^1.2",
+		"rolldown/": "npm:/rolldown@^1.2/",
+		"vite": "npm:vite@^8.3",
 		"zod": "npm:zod@^3.23",
 		"zod-to-json-schema": "npm:zod-to-json-schema@^3.23"
 	}
