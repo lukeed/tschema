@@ -79,7 +79,13 @@ describe('rolldown', () => {
 		out = await compile({
 			'schemas.ts': SCHEMAS,
 			'tree.ts': TREE,
+			'extra.ts': `
+				import * as t from 'tschema';
+				export * from './schemas.ts';
+				export default t.string({ format: 'uuid' });
+			`,
 			'main.ts': `
+				import Id, { Address as Addr } from './extra.ts';
 				import * as t from 'tschema';
 				import * as v from 'tschema/validate';
 				import { assert, parse, validate } from 'tschema/validate';
@@ -92,6 +98,8 @@ describe('rolldown', () => {
 				export const tree = (x: unknown) => parse(Tree, x);
 				export const local = (x: unknown) => v.validate(Local, x);
 				export const address = (x: unknown) => parse(schemas.Address, x);
+				export const id = (x: unknown) => parse(Id, x);
+				export const addr = (x: unknown) => parse(Addr, x);
 				export const inline = (x: unknown) => {
 					assert(t.array(t.integer(), { maxItems: 2 }), x);
 					return x;
@@ -106,6 +114,18 @@ describe('rolldown', () => {
 		assertMatch(out.code, /tschema:Person-/);
 		assertMatch(out.code, /tschema:Tree-/);
 		assertMatch(out.code, /tschema:Local-/);
+		assertMatch(out.code, /tschema:Id-/);
+		assertMatch(out.code, /tschema:Addr-/);
+	});
+
+	it('should resolve default and star exports', () => {
+		assertEquals(
+			out.mod.id('00000000-0000-0000-0000-000000000000'),
+			'00000000-0000-0000-0000-000000000000',
+		);
+		assertEquals(out.mod.id('x'), undefined);
+		assertEquals(out.mod.addr({ city: 'a', zip: '12345' }), { city: 'a', zip: '12345' });
+		assertEquals(out.mod.addr({ city: 'a', zip: 'x' }), undefined);
 	});
 
 	it('should validate imported schemas', () => {

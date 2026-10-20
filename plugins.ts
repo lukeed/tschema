@@ -51,6 +51,7 @@ type Module = {
 	ast: ESTree.Program;
 	bindings: Map<string, Binding>;
 	exports: Map<string, Export>;
+	stars: string[];
 	mutated: Set<string>;
 	values: Map<string, Promise<unknown>>;
 };
@@ -76,16 +77,10 @@ function isNode(x: unknown): x is ESTree.Node {
 	return typeof x === 'object' && x !== null && 'type' in x && typeof x.type === 'string';
 }
 
-function lang(id: string): 'js' | 'jsx' | 'ts' | 'tsx' {
-	let ext = /\.([cm]?[jt]sx?)$/.exec(id.replace(/[?#].*$/, ''));
-	if (!ext) return 'js';
-	return ext[1].endsWith('tsx')
-		? 'tsx'
-		: ext[1].endsWith('jsx')
-		? 'jsx'
-		: ext[1].endsWith('ts')
-		? 'ts'
-		: 'js';
+function lang(id: string): 'js' | 'jsx' | 'ts' | 'tsx' | undefined {
+	let match = /[?&]lang\.([jt]sx?)$/.exec(id) ||
+		/\.[cm]?([jt]sx?)$/.exec(id.replace(/[?#].*$/, ''));
+	if (match) return match[1] === 'ts' || match[1] === 'tsx' || match[1] === 'jsx' ? match[1] : 'js';
 }
 
 function nameOf(node: ESTree.ModuleExportName): string {
@@ -207,6 +202,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		ast,
 		bindings: new Map(),
 		exports: new Map(),
+		stars: [],
 		mutated: new Set(),
 		values: new Map(),
 	};
@@ -225,6 +221,25 @@ function analyze(id: string, ast: ESTree.Program): Module {
 						? 'default'
 						: '*',
 				});
+			}
+			continue;
+		}
+
+		if (node.type === 'ExportAllDeclaration') {
+			if (node.exportKind !== 'type' && !node.exported) mod.stars.push(node.source.value);
+			continue;
+		}
+
+		if (node.type === 'ExportDefaultDeclaration') {
+			let d = node.declaration;
+			if (d.type === 'Identifier') {
+				mod.exports.set('default', { local: d.name });
+			} else if (
+				d.type !== 'FunctionDeclaration' && d.type !== 'ClassDeclaration' &&
+				d.type !== 'TSInterfaceDeclaration'
+			) {
+				mod.bindings.set('*default*', { kind: 'const', init: d });
+				mod.exports.set('default', { local: '*default*' });
 			}
 			continue;
 		}
@@ -297,7 +312,7 @@ function load(s: Session, id: string): Promise<Module> {
 			id,
 			mod = readFile(id.replace(/[?#].*$/, ''), 'utf8').then((code) => {
 				s.ctx.addWatchFile(id);
-				return analyze(id, s.ctx.parse(code, { lang: lang(id) }));
+				return analyze(id, s.ctx.parse(code, { lang: lang(id) || 'js' }));
 			}),
 		);
 	}
@@ -312,10 +327,21 @@ async function exported(s: Session, mod: Module, source: string, name: string): 
 		throw new Dynamic();
 	});
 	let entry = target.exports.get(name);
-	if (!entry) throw new Dynamic();
-	return 'local' in entry
-		? binding(s, target, entry.local)
-		: exported(s, target, entry.source, entry.name);
+	if (entry) {
+		return 'local' in entry
+			? binding(s, target, entry.local)
+			: exported(s, target, entry.source, entry.name);
+	}
+	if (name !== 'default') {
+		for (let star of target.stars) {
+			try {
+				return await exported(s, target, star, name);
+			} catch (err) {
+				if (!(err instanceof Dynamic)) throw err;
+			}
+		}
+	}
+	throw new Dynamic();
 }
 
 function binding(s: Session, mod: Module, name: string): Promise<unknown> {
@@ -633,7 +659,15 @@ function plugin() {
 
 		async transform(ctx: Context, code: string, id: string) {
 			if (id.startsWith('\0')) return;
-			let ast = ctx.parse(code, { lang: lang(id) });
+			let type = lang(id);
+			if (!type) return;
+
+			try {
+				var ast = ctx.parse(code, { lang: type });
+			} catch {
+				return;
+			}
+
 			let mod = analyze(id, ast);
 			let session: Session = { ctx, modules: new Map([[id, Promise.resolve(mod)]]) };
 
