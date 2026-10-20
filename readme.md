@@ -228,9 +228,9 @@ bun run bench
 
 | benchmark | bun | node |
 | --- | --- | --- |
-| tschema | 163.5 ns | 147.8 ns |
-| typebox (1.4) | 1.76 µs | 3.50 µs |
-| zod-to-json-schema | 17.59 µs | 18.75 µs |
+| tschema | 168.53 ns | 151.44 ns |
+| typebox (1.4) | 1.82 µs | 3.63 µs |
+| zod-to-json-schema | 18.52 µs | 19.36 µs |
 
 ### Validation
 
@@ -241,32 +241,32 @@ TypeBox (1.4) compiles the same JSON schema with `typebox/schema`. Its `Check` m
 | benchmark | bun | node |
 | --- | --- | --- |
 | **all errors (valid)** | | |
-| tschema/validate | 144.2 ns | 141.3 ns |
-| tschema/validate (aot) | 139.9 ns | 140.7 ns |
-| ajv (allErrors) | 188.8 ns | 230.7 ns |
-| typebox (Errors) | 11.67 µs | 17.09 µs |
+| tschema/validate | 180.77 ns | 142.53 ns |
+| tschema/validate (aot) | 161.52 ns | 144.73 ns |
+| ajv (allErrors) | 185.90 ns | 236.67 ns |
+| typebox (Errors) | 12.82 µs | 17.46 µs |
 | **first error (valid)** | | |
-| tschema/parse | 140.6 ns | 141.5 ns |
-| tschema/parse (aot) | 145.4 ns | 135.4 ns |
-| ajv | 202.3 ns | 231.4 ns |
-| typebox (Check) | 290.3 ns | 269.4 ns |
+| tschema/parse | 162.52 ns | 136.24 ns |
+| tschema/parse (aot) | 162.18 ns | 130.76 ns |
+| ajv | 191.85 ns | 231.62 ns |
+| typebox (Check) | 291.89 ns | 260.32 ns |
 | **all errors (invalid)** | | |
-| tschema/validate | 152.9 ns | 127.2 ns |
-| tschema/validate (aot) | 149.5 ns | 121.9 ns |
-| ajv (allErrors) | 219.3 ns | 207.3 ns |
-| typebox (Errors) | 10.26 µs | 16.52 µs |
+| tschema/validate | 160.21 ns | 127.71 ns |
+| tschema/validate (aot) | 150.19 ns | 125.26 ns |
+| ajv (allErrors) | 226.70 ns | 217.31 ns |
+| typebox (Errors) | 11.14 µs | 17.13 µs |
 | **first error (invalid)** | | |
-| tschema/parse | 10.7 ns | 9.5 ns |
-| tschema/parse (aot) | 7.9 ns | 5.2 ns |
-| ajv | 36.1 ns | 51.5 ns |
-| typebox (Check) | 132.8 ns | 103.2 ns |
+| tschema/parse | 10.53 ns | 7.77 ns |
+| tschema/parse (aot) | 4.59 ns | 4.27 ns |
+| ajv | 35.36 ns | 56.53 ns |
+| typebox (Check) | 126.54 ns | 106.40 ns |
 | **compile** | | |
-| tschema/validate | 103.4 µs | 78.1 µs |
+| tschema/validate | 47.11 µs | 37.71 µs |
 | tschema/validate (aot) | – | – |
-| typebox | 34.8 µs | 38.2 µs |
-| ajv | 6.72 ms | 5.08 ms |
+| typebox | 38.62 µs | 40.89 µs |
+| ajv | 6.20 ms | 5.23 ms |
 
-The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 5.0 kB gzip with the plugin and 7.9 kB without it.
+The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 4.8 kB gzip with the plugin and 7.9 kB without it.
 
 ## License
 
