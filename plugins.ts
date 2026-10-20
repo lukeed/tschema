@@ -389,6 +389,15 @@ function builder(mod: Module, callee: ESTree.Node, stack: Set<string>[]): string
 	}
 }
 
+function define(target: Record<string, unknown>, key: string, value: unknown) {
+	Object.defineProperty(target, key, {
+		value,
+		enumerable: true,
+		writable: true,
+		configurable: true,
+	});
+}
+
 function key(node: ESTree.PropertyKey, computed: boolean): string {
 	if (!computed && node.type === 'Identifier') return node.name;
 	if (
@@ -460,11 +469,15 @@ async function evaluate(
 					if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 						throw new Dynamic();
 					}
-					Object.assign(out, value);
-				} else if (p.kind !== 'init' || p.method) {
+					for (let [k, v] of Object.entries(value)) define(out, k, v);
+				} else if (
+					p.kind !== 'init' ||
+					p.method ||
+					(!p.computed && !p.shorthand && key(p.key, false) === '__proto__')
+				) {
 					throw new Dynamic();
 				} else {
-					out[key(p.key, p.computed)] = await evaluate(s, mod, p.value, env, stack);
+					define(out, key(p.key, p.computed), await evaluate(s, mod, p.value, env, stack));
 				}
 			}
 			return out;

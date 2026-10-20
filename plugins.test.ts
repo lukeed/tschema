@@ -216,6 +216,7 @@ describe('rolldown (dynamic)', () => {
 					return parse(t.integer(), x);
 				};
 				export const local = (validate: (a: unknown, b: unknown) => unknown, x: unknown) => validate(Mutable, x);
+				export const proto = (x: unknown) => parse({ __proto__: { type: 'string' } } as t.Type, x);
 			`,
 		});
 	});
@@ -231,6 +232,8 @@ describe('rolldown (dynamic)', () => {
 		expect(out.mod.factory(4)).toStrictEqual(undefined);
 		expect(out.mod.factory(5)).toStrictEqual(5);
 		expect(out.mod.shadow('x')).toStrictEqual('x');
+		expect(out.mod.proto('x')).toStrictEqual('x');
+		expect(out.mod.proto(1)).toStrictEqual(undefined);
 	});
 });
 
@@ -241,7 +244,10 @@ describe('rolldown (suite)', () => {
 	beforeAll(async () => {
 		groups = (await suite.load()).flatMap(([, list]) => list);
 		let code = `import { validate } from 'tschema/validate';\nexport default [\n`;
-		for (let g of groups) code += `\t(x) => validate(${JSON.stringify(g.schema)}, x),\n`;
+		for (let g of groups) {
+			let schema = JSON.stringify(g.schema).replaceAll('"__proto__":', '["__proto__"]:');
+			code += `\t(x) => validate(${schema}, x),\n`;
+		}
 		out = await compile({ 'main.js': code + '];\n' }, 'main.js');
 	});
 
