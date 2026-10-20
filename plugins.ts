@@ -563,7 +563,7 @@ async function evaluate(
  * Generate the ahead-of-time compiled module for a schema.
  */
 function emit(schema: unknown, from: string): string {
-	let { code, deps } = compile(schema);
+	let { code, deps } = compile(schema, ['validate', 'parse', 'assert']);
 	let out = `import { ValidationError } from ${JSON.stringify(from)};\n`;
 	if (deps.length) {
 		out += `import { ${deps.map((d) => '$' + d).join(', ')} } from "${PREFIX}helpers";\n`;

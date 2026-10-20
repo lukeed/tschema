@@ -3,6 +3,7 @@
  */
 import { compile, helpers } from './compile';
 
+import type { Api } from './compile';
 import type { Infer, Type } from './mod';
 
 /**
@@ -91,13 +92,18 @@ export class ValidationError extends Error {
 	}
 }
 
-type Validator<T extends Type> = [
-	validate: (input: unknown) => Result<T>,
-	parse: (input: unknown) => Infer<T> | undefined,
-	assert: (input: unknown) => void,
-];
+type Validator<T extends Type> = {
+	validate: (input: unknown) => Result<T>;
+	parse: (input: unknown) => Infer<T> | undefined;
+	assert: (input: unknown) => void;
+};
 
-const cache = new WeakMap<Type, unknown>();
+const caches: Record<Api, WeakMap<Type, unknown>> = {
+	validate: new WeakMap(),
+	parse: new WeakMap(),
+	assert: new WeakMap(),
+};
+
 const instances = new Map<string, unknown>();
 
 function helper(name: string): unknown {
@@ -109,16 +115,16 @@ function helper(name: string): unknown {
 	return value;
 }
 
-function load<T extends Type>(schema: T): Validator<T> {
-	let fns = cache.get(schema) as Validator<T> | undefined;
-	if (fns) return fns;
+function load<T extends Type, K extends Api>(schema: T, api: K): Validator<T>[K] {
+	let cache = caches[api];
+	let fn = cache.get(schema) as Validator<T>[K] | undefined;
+	if (fn) return fn;
 
-	let { code, deps } = compile(schema);
-	let args = deps.map((name) => '$' + name);
-	let output: Validator<T> = new Function(
+	let { code, deps } = compile(schema, [api]);
+	let output: Validator<T>[K] = new Function(
 		'ValidationError',
-		...args,
-		`${code}return[validate,parse,assert]`,
+		...deps.map((name) => '$' + name),
+		`${code}return ${api}`,
 	)(ValidationError, ...deps.map(helper));
 
 	cache.set(schema, output);
@@ -138,7 +144,7 @@ function load<T extends Type>(schema: T): Validator<T> {
  * ```
  */
 export function validate<T extends Type>(schema: T, input: unknown): Result<T> {
-	return load(schema)[0](input);
+	return load(schema, 'validate')(input);
 }
 
 /**
@@ -153,7 +159,7 @@ export function validate<T extends Type>(schema: T, input: unknown): Result<T> {
  * ```
  */
 export function parse<T extends Type>(schema: T, input: unknown): Infer<T> | undefined {
-	return load(schema)[1](input);
+	return load(schema, 'parse')(input);
 }
 
 /**
@@ -168,5 +174,5 @@ export function parse<T extends Type>(schema: T, input: unknown): Infer<T> | und
  * ```
  */
 export function assert<T extends Type>(schema: T, input: unknown): asserts input is Infer<T> {
-	load(schema)[2](input);
+	load(schema, 'assert')(input);
 }

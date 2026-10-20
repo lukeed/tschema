@@ -608,6 +608,11 @@ function hoist(c: Context, expr: string): string {
 	return id;
 }
 
+function quote(text: string): string {
+	// oxlint-disable-next-line no-control-regex
+	return /[\\"\x00-\x1f\u2028\u2029]/.test(text) ? JSON.stringify(text) : '"' + text + '"';
+}
+
 function escape(key: string): string {
 	return key.replace(/~/g, '~0').replace(/\//g, '~1');
 }
@@ -619,24 +624,24 @@ function location(c: Context, path: Segment[]): string {
 		if (typeof x === 'string') {
 			s += '/' + x;
 		} else {
-			out.push(JSON.stringify(s + '/'), x[1] ? `${use(c, 'ptr')}(${x[0]})` : x[0]);
+			out.push(quote(s + '/'), x[1] ? `${use(c, 'ptr')}(${x[0]})` : x[0]);
 			s = '';
 		}
 	}
-	if (s || !out.length) out.push(JSON.stringify(s));
+	if (s || !out.length) out.push(quote(s));
 	return out.join('+');
 }
 
-function fail(c: Context, m: Mode, ip: Segment[], kp: Segment[], msg: string): string {
+function fail(c: Context, m: Mode, ip: Segment[], kp: string, msg: string): string {
 	if (m === TEST) return 'return false;';
-	let args = `${location(c, ip)},${location(c, kp)},${JSON.stringify(msg)}`;
+	let args = `${location(c, ip)},${quote(kp)},${quote(msg)}`;
 	return m === ALL ? `E=${use(c, 'e')}(E,${args});` : `return ${use(c, 'err')}(${args});`;
 }
 
-function call(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: Mode): string {
+function call(c: Context, s: Schema, x: string, ip: Segment[], kp: string, m: Mode): string {
 	let name = fn(c, s, m);
 	if (m === TEST) return `if(!${name}(${x}))return false;`;
-	let args = `r,${location(c, ip)},${location(c, kp)}`;
+	let args = `r,${location(c, ip)},${quote(kp)}`;
 	return m === ALL
 		? `if(r=${name}(${x}))E=${use(c, 'm')}(E,${args});`
 		: `if(r=${name}(${x}))return ${use(c, 'p')}(${args});`;
@@ -647,7 +652,7 @@ function fn(c: Context, s: Schema, m: Mode): string {
 	if (!names) c.fns.set(s, (names = []));
 	if (names[m]) return names[m];
 	let name = (names[m] = 'aft'[m] + ++c.n);
-	let body = gen(c, s, 'x', [], [], m);
+	let body = gen(c, s, 'x', [], '', m);
 	c.code +=
 		m === ALL
 			? `function ${name}(x){var E,r;${body}return E}`
@@ -695,7 +700,7 @@ function regex(c: Context, pattern: string): string {
 }
 
 function property(c: Context, x: string, key: string): string {
-	let k = JSON.stringify(key);
+	let k = quote(key);
 	return key in Object.prototype ? `(${use(c, 'has')}(${x},${k})?${x}[${k}]:void 0)` : `${x}[${k}]`;
 }
 
@@ -783,12 +788,12 @@ const SIZES: [keyword: keyof Node, size: string, op: string, unit: string][] = [
 	['maxProperties', 'Object.keys(#).length', '>', 'properties'],
 ];
 
-function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: Mode): string {
+function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: string, m: Mode): string {
 	if (s === true) return '';
 	if (s === false) return fail(c, m, ip, kp, 'is not allowed');
 
 	let rule = (cond: string, keyword: string, msg: string) =>
-		`if(${cond})${fail(c, m, ip, [...kp, keyword], msg)}`;
+		`if(${cond})${fail(c, m, ip, kp + '/' + keyword, msg)}`;
 	let test = (list: Schema[]) => list.map((sub) => `${fn(c, sub, TEST)}(${x})`);
 
 	let y: string, i: string, k: string, sub: string, v: unknown;
@@ -799,7 +804,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 		obj = '';
 
 	if (typeof s.$ref === 'string') {
-		any += call(c, resolve(c, s, s.$ref), x, ip, [...kp, '$ref'], m);
+		any += call(c, resolve(c, s, s.$ref), x, ip, kp + '/$ref', m);
 	}
 
 	if (s.const !== undefined) {
@@ -812,7 +817,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 	if (s.allOf) {
 		s.allOf.forEach((x2, idx) => {
-			any += gen(c, x2, x, ip, [...kp, 'allOf', '' + idx], m);
+			any += gen(c, x2, x, ip, kp + '/allOf/' + idx, m);
 		});
 	}
 
@@ -905,7 +910,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	if (prefix) {
 		prefix.forEach((x2, idx) => {
 			y = 'y' + ++c.n;
-			sub = gen(c, x2, y, [...ip, '' + idx], [...kp, tuple ? 'items' : 'prefixItems', '' + idx], m);
+			sub = gen(c, x2, y, [...ip, '' + idx], kp + (tuple ? '/items/' : '/prefixItems/') + idx, m);
 			if (sub) arr += `if(${x}.length>${idx}){const ${y}=${x}[${idx}];${sub}}`;
 		});
 	}
@@ -915,7 +920,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 	} else if (rest !== undefined && rest !== true) {
 		i = 'i' + ++c.n;
 		y = 'y' + ++c.n;
-		sub = gen(c, rest, y, [...ip, [i, false]], [...kp, keyword], m);
+		sub = gen(c, rest, y, [...ip, [i, false]], kp + '/' + keyword, m);
 		if (sub) arr += `for(let ${i}=${count};${i}<${x}.length;${i}++){const ${y}=${x}[${i}];${sub}}`;
 	}
 
@@ -955,7 +960,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 	for (k in props) {
 		y = 'y' + ++c.n;
-		sub = gen(c, props[k], y, [...ip, escape(k)], [...kp, 'properties', escape(k)], m);
+		sub = gen(c, props[k], y, [...ip, escape(k)], kp + '/properties/' + escape(k), m);
 		if (required.delete(k)) {
 			obj +=
 				`const ${y}=${property(c, x, k)};` +
@@ -983,12 +988,12 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 		k = 'k' + ++c.n;
 		y = 'y' + ++c.n;
 		let hit = extra !== undefined && keys.length ? 'h' + ++c.n : '';
-		let body = names === undefined ? '' : gen(c, names, k, ip, [...kp, 'propertyNames'], m);
+		let body = names === undefined ? '' : gen(c, names, k, ip, kp + '/propertyNames', m);
 
 		if (hit) body += `let ${hit}=0;`;
 
 		for (let p of keys) {
-			sub = gen(c, patterns[p], y, [...ip, [k, true]], [...kp, 'patternProperties', escape(p)], m);
+			sub = gen(c, patterns[p], y, [...ip, [k, true]], kp + '/patternProperties/' + escape(p), m);
 			if (sub || hit) body += `if(${regex(c, p)}.test(${k})){${hit && hit + '=1;'}${sub}}`;
 		}
 
@@ -998,14 +1003,14 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 				known.length &&
 					`!(${
 						known.length < 9
-							? known.map((key) => `${k}===${JSON.stringify(key)}`).join('||')
+							? known.map((key) => `${k}===${quote(key)}`).join('||')
 							: `${hoist(c, `new Set(${JSON.stringify(known)})`)}.has(${k})`
 					})`,
 				hit && '!' + hit,
 			]
 				.filter(Boolean)
 				.join('&&');
-			sub = gen(c, extra, y, [...ip, [k, true]], [...kp, 'additionalProperties'], m);
+			sub = gen(c, extra, y, [...ip, [k, true]], kp + '/additionalProperties', m);
 			if (sub) body += cond ? `if(${cond}){${sub}}` : sub;
 		}
 
@@ -1044,16 +1049,22 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 /**
  * @internal
+ * The functions that {@link compile} can declare.
+ */
+export type Api = 'validate' | 'parse' | 'assert';
+
+/**
+ * @internal
  * Generate the validator source for a {@link Schema}.
  *
- * The `code` declares `validate`, `parse`, and `assert` functions.
+ * The `code` declares each of the requested `apis` as a function.
  * It expects a `ValidationError` class and each of its `deps` as `$<name>` in scope.
  *
  * ```ts
- * let { code, deps } = compile(schema);
+ * let { code, deps } = compile(schema, ['parse']);
  * ```
  */
-export function compile(schema: unknown): Output {
+export function compile(schema: unknown, apis: Api[]): Output {
 	if (typeof schema !== 'boolean' && !isNode(schema)) {
 		throw new TypeError('Invalid schema');
 	}
@@ -1072,15 +1083,19 @@ export function compile(schema: unknown): Output {
 	register(c, BASE, schema);
 	scan(c, schema, BASE);
 
-	let all = fn(c, schema, ALL);
-	let first = fn(c, schema, FIRST);
-
-	c.code += `function validate(x){var e=${all}(x);return e?{ok:false,errors:e}:{ok:true,value:x}}`;
-	c.code += `function parse(x){return ${first}(x)?void 0:x}`;
-	c.code += `function assert(x){var e=${first}(x);if(e)throw new ValidationError(e)}`;
+	let code = '';
+	for (let api of apis) {
+		if (api === 'validate') {
+			code += `function validate(x){var e=${fn(c, schema, ALL)}(x);return e?{ok:false,errors:e}:{ok:true,value:x}}`;
+		} else if (api === 'parse') {
+			code += `function parse(x){return ${fn(c, schema, TEST)}(x)?x:void 0}`;
+		} else {
+			code += `function assert(x){var e=${fn(c, schema, FIRST)}(x);if(e)throw new ValidationError(e)}`;
+		}
+	}
 
 	return {
-		code: c.code,
+		code: c.code + code,
 		deps: [...c.deps],
 	};
 }
