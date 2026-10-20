@@ -1,4 +1,4 @@
-import { Type } from '@sinclair/typebox';
+import { Type } from 'typebox';
 import { bench, run, summary } from 'mitata';
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -32,7 +32,7 @@ summary(() => {
 		});
 	});
 
-	bench('sinclair/typebox', () => {
+	bench('typebox', () => {
 		return Type.Object({
 			uid: Type.Integer(),
 			name: Type.String({

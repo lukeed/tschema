@@ -16,7 +16,6 @@
 		"bench:node": "node bench/builder.ts && node bench/validate.ts"
 	},
 	"devDependencies": {
-		"@sinclair/typebox": "^0.32.35",
 		"@types/bun": "^1.4.3",
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
@@ -25,6 +24,7 @@
 		"oxfmt": "^0.74.0",
 		"oxlint": "^1.89.0",
 		"rolldown": "^1.2.14",
+		"typebox": "^1.4.2",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
 		"zod": "^3.23.8",
