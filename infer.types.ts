@@ -947,3 +947,67 @@ let _d0c: boolean = D0.c!.d.key.x.y;
 declare function generic<T extends t.Type>(schema: T, input: unknown): t.Infer<T> | undefined;
 
 let _d0d: string | undefined = generic(d0, {})?.c?.a.a.a.a.v;
+
+// ---
+// OBJECT / CUSTOM REQUIRED
+// ---
+
+let rq1 = t.object(
+	{
+		a: t.string(),
+		b: t.optional(t.string()),
+		c: t.number(),
+	},
+	{
+		required: ['a', 'b'],
+	},
+);
+
+// `required` wins over `t.optional` markers
+equal<t.Infer<typeof rq1>, { a: string; b: string; c?: number }>();
+equal<typeof rq1.required, readonly ['a', 'b']>();
+
+let rq2 = t.object({ a: t.string(), b: t.number() }, { required: [] });
+equal<t.Infer<typeof rq2>, { a?: string; b?: number }>();
+
+let rq3 = t.object({ a: t.string() });
+equal<t.Infer<typeof rq3>, { a: string }>();
+
+t.object(
+	{ a: t.string() },
+	{
+		// @ts-expect-error; unknown key
+		required: ['x'],
+	},
+);
+
+t.object(
+	{ a: t.string(), b: t.number() },
+	{
+		required: ['a'],
+		default: { a: STRING },
+		examples: [{ a: STRING, b: NUMBER }],
+	},
+);
+
+t.object(
+	{ a: t.string(), b: t.number() },
+	{
+		required: ['a', 'b'],
+		// @ts-expect-error; missing required "b"
+		default: { a: STRING },
+	},
+);
+
+// nested + partial
+let rq4 = t.object({ inner: rq1, list: t.array(rq2) });
+equal<
+	t.Infer<typeof rq4>,
+	{
+		inner: { a: string; b: string; c?: number };
+		list: { a?: string; b?: number }[];
+	}
+>();
+
+let rq5 = t.partial(rq1);
+equal<t.Infer<typeof rq5>, { a?: string; b?: string; c?: number }>();
