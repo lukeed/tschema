@@ -538,7 +538,8 @@ type Context = {
 
 function use(c: Context, name: string): string {
 	if (!c.deps.has(name)) {
-		for (let d of helpers[name].slice(1)) use(c, d as string);
+		let [, ...deps] = helpers[name];
+		for (let d of deps) use(c, d);
 		c.deps.add(name);
 	}
 	return '$' + name;
@@ -827,10 +828,11 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: Segment[], m: 
 
 	// arrays
 
-	let tuple = Array.isArray(s.items);
-	let prefix = tuple ? s.items as Schema[] : s.prefixItems;
-	let legacy = tuple || (s.items === undefined && prefix);
-	let rest = legacy ? s.additionalItems : s.items as Schema | undefined;
+	let items = s.items;
+	let tuple = Array.isArray(items);
+	let prefix = Array.isArray(items) ? items : s.prefixItems;
+	let legacy = tuple || (items === undefined && prefix);
+	let rest = Array.isArray(items) || legacy ? s.additionalItems : items;
 	let keyword = legacy ? 'additionalItems' : 'items';
 	let count = prefix ? prefix.length : 0;
 
