@@ -316,6 +316,8 @@ export const helpers: Record<string, Helper> = {
 		(puny: readonly [(s: string) => string | undefined, (s: string) => string]) => {
 			let [decode, encode] = puny;
 			let LDH = /^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i;
+			let FAST =
+				/^(?=.{1,253}$)[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)*$/i;
 			let VALID =
 				/^[\p{Ll}\p{Lo}\p{Lm}\p{Mn}\p{Mc}\p{Nd}\u00b7\u00df\u0375\u03c2\u05f3\u05f4\u06fd\u06fe\u0f0b\u200c\u200d\u3007\u30fb-]+$/u;
 			let INVALID = /[\u0640\u07fa\u302e\u302f\u3031-\u3035\u303b]|^\p{M}|^-|-$|^..--/u;
@@ -373,6 +375,7 @@ export const helpers: Record<string, Helper> = {
 					(last === 'L' || last === 'EN');
 			};
 			return (s: string, idn?: 1) => {
+				if (!s.includes('--') && /^[\0-\x7f]*$/.test(s)) return FAST.test(s);
 				if (idn) {
 					s = s.normalize('NFKC').replace(
 						/[\u00ad\u034f\u180b-\u180d\u200b\u2060\ufe00-\ufe0f\ufeff]/g,
@@ -420,7 +423,10 @@ export const helpers: Record<string, Helper> = {
 				/^(?:[\w!#$%&'*+/=?^`{|}~-]+(?:\.[\w!#$%&'*+/=?^`{|}~-]+)*|"(?:[\x20\x21\x23-\x5b\x5d-\x7e]|\\[\x20-\x7e])*")$/;
 			let U =
 				/^(?:[\w!#$%&'*+/=?^`{|}~\u0080-\uffff-]+(?:\.[\w!#$%&'*+/=?^`{|}~\u0080-\uffff-]+)*|"(?:[\x20\x21\x23-\x5b\x5d-\x7e\u0080-\uffff]|\\[\x20-\x7e\u0080-\uffff])*")$/;
+			let FAST =
+				/^[\w!#$%&'*+/=?^`{|}~-]+(?:\.[\w!#$%&'*+/=?^`{|}~-]+)*@[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)*$/i;
 			return (s: string, idn?: 1) => {
+				if (FAST.test(s) && !s.includes('--') && s.length - s.lastIndexOf('@') < 255) return true;
 				let i = s.lastIndexOf('@');
 				if (i < 1 || !(idn ? U : A).test(s.slice(0, i))) return false;
 				let d = s.slice(i + 1);
@@ -437,10 +443,15 @@ export const helpers: Record<string, Helper> = {
 	uri: [
 		(ipv6: (s: string) => boolean) => {
 			let make = (u: string, p: string) => {
-				let c = `[\\w.~!$&'()*+,;=${u}-]|%[\\da-f]{2}`;
+				let x = (c: string) =>
+					`[\\w.~!$&'()*+,;=${u}${c}-]*(?:%[\\da-f]{2}[\\w.~!$&'()*+,;=${u}${c}-]*)*`;
 				return new RegExp(
-					`^(?:([a-z][a-z\\d+.-]*):)?(?:(//)(?:(?:${c}|:)*@)?(?:\\[(?:v[\\da-f]+\\.[\\w.~!$&'()*+,;=:-]+|([^\\]]*))\\]|(?:${c})*)(?::\\d*)?)?((?:${c}|[:@/])*)(?:\\?(?:${c}|[:@/?${p}])*)?(?:#(?:${c}|[:@/?])*)?$`,
-					'iu',
+					`^(?:([a-z][a-z\\d+.-]*):)?(?:(//)(?:${
+						x(':')
+					}@)?(?:\\[(?:v[\\da-f]+\\.[\\w.~!$&'()*+,;=:-]+|([^\\]]*))\\]|${x('')})(?::\\d*)?)?(${
+						x(':@/')
+					})(?:\\?${x(':@/?' + p)})?(?:#${x(':@/?')})?$`,
+					u ? 'iu' : 'i',
 				);
 			};
 			let R = [
@@ -450,7 +461,9 @@ export const helpers: Record<string, Helper> = {
 					'\\u{e000}-\\u{f8ff}\\u{f0000}-\\u{ffffd}\\u{100000}-\\u{10fffd}',
 				),
 			];
+			let FAST = /^[a-z][a-z\d+.-]*:\/\/[\w.~-]+(?::\d+)?(?:\/[\w.~!$&'()*+,;=:@/-]*)?$/i;
 			return (s: string, ref?: 0 | 1, iri?: 1) => {
+				if (FAST.test(s)) return true;
 				let m = R[iri || 0].exec(s);
 				if (!m) return false;
 				if (!m[1] && (!ref || (!m[2] && /^[^/]*:/.test(m[4])))) return false;
