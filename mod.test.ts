@@ -671,7 +671,7 @@ describe('Partial', () => {
 			}),
 		);
 
-		assertEquals(output, {
+		assertEquals<unknown>(output, {
 			type: 'object',
 			additionalProperties: false,
 			properties: {

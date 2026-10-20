@@ -260,8 +260,7 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
  * //-> }
  * ```
  */
-// @ts-expect-error; object needs distinct/definitive type else array overlap
-function _partial<P extends Properties>(input: _object<P>): _object<Partial<P>> {
+function _partial<P extends Properties>(input: _object<P>): _object<{ [K in keyof P]: _optional<P[K]> }> {
 	// deno-lint-ignore no-unused-vars
 	let { required, ...schema } = input;
 	// @ts-expect-error; generic `default` types are not comparable
