@@ -8,7 +8,7 @@
 		"release": "bun scripts/release.ts",
 		"bench": "bun run build && bun run bench:bun && bun run bench:node",
 		"test": "bun test",
-		"types": "tsc",
+		"types": "bun run build && tsc",
 		"lint": "oxlint",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
