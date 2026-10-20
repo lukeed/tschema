@@ -508,7 +508,7 @@ async function evaluate(
 				}
 				let inner = new Map(env).set(define.params[0].name, { $ref: value });
 				let schema = await evaluate(s, mod, body, inner, stack);
-				return t.recursive(value, () => schema as t.Type);
+				return Reflect.apply(fn, undefined, [value, () => schema]);
 			}
 
 			let args: unknown[] = [];
