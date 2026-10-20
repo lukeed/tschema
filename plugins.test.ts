@@ -1,16 +1,18 @@
-import { assert, assertEquals, assertMatch, assertNotMatch, assertThrows } from '@std/assert';
-import { afterAll, beforeAll, describe, it } from '@std/testing/bdd';
-import { join, toFileUrl } from '@std/path';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { rolldown as bundle } from 'rolldown';
 import { build, createServer } from 'vite';
-import { rolldown, vite } from './plugins.ts';
-import * as suite from './scripts/suite.ts';
+import { rolldown, vite } from './plugins';
+import * as suite from './scripts/suite';
 
-const ROOT = import.meta.dirname!;
+const ROOT = import.meta.dir;
 
 const ALIAS = {
 	'tschema/validate': join(ROOT, 'validate.ts'),
-	'tschema': join(ROOT, 'mod.ts'),
+	tschema: join(ROOT, 'mod.ts'),
 };
 
 const SCHEMAS = `
@@ -29,7 +31,7 @@ const User = t.object({
 });
 
 export { User as Person };
-export { Tree } from './tree.ts';
+export { Tree } from './tree';
 `;
 
 const TREE = `
@@ -43,9 +45,9 @@ export const Tree = recursive('Tree', (self) =>
 `;
 
 async function project(files: Record<string, string>): Promise<string> {
-	let dir = await Deno.makeTempDir({ prefix: 'tschema-' });
+	let dir = await mkdtemp(join(tmpdir(), 'tschema-'));
 	for (let [name, code] of Object.entries(files)) {
-		await Deno.writeTextFile(join(dir, name), code);
+		await writeFile(join(dir, name), code);
 	}
 	return dir;
 }
@@ -68,7 +70,7 @@ async function compile(files: Record<string, string>, entry = 'main.ts'): Promis
 	let file = join(dir, 'dist', output[0].fileName);
 	return {
 		code: output[0].code,
-		mod: await import(toFileUrl(file).href),
+		mod: await import(pathToFileURL(file).href),
 	};
 }
 
@@ -81,16 +83,16 @@ describe('rolldown', () => {
 			'tree.ts': TREE,
 			'extra.ts': `
 				import * as t from 'tschema';
-				export * from './schemas.ts';
+				export * from './schemas';
 				export default t.string({ format: 'uuid' });
 			`,
 			'main.ts': `
-				import Id, { Address as Addr } from './extra.ts';
+				import Id, { Address as Addr } from './extra';
 				import * as t from 'tschema';
 				import * as v from 'tschema/validate';
 				import { assert, parse, validate } from 'tschema/validate';
-				import { Person, Tree } from './schemas.ts';
-				import * as schemas from './schemas.ts';
+				import { Person, Tree } from './schemas';
+				import * as schemas from './schemas';
 
 				const Local = t.object({ id: t.integer({ minimum: 1 }) });
 
@@ -109,27 +111,28 @@ describe('rolldown', () => {
 	});
 
 	it('should compile every static call', () => {
-		assertNotMatch(out.code, /new Function/);
-		assertNotMatch(out.code, /function compile\(/);
-		assertMatch(out.code, /tschema:Person-/);
-		assertMatch(out.code, /tschema:Tree-/);
-		assertMatch(out.code, /tschema:Local-/);
-		assertMatch(out.code, /tschema:Id-/);
-		assertMatch(out.code, /tschema:Addr-/);
+		expect(out.code).not.toMatch(/new Function/);
+		expect(out.code).not.toMatch(/function compile\(/);
+		expect(out.code).toMatch(/tschema:Person-/);
+		expect(out.code).toMatch(/tschema:Tree-/);
+		expect(out.code).toMatch(/tschema:Local-/);
+		expect(out.code).toMatch(/tschema:Id-/);
+		expect(out.code).toMatch(/tschema:Addr-/);
 	});
 
 	it('should resolve default and star exports', () => {
-		assertEquals(
-			out.mod.id('00000000-0000-0000-0000-000000000000'),
+		expect(out.mod.id('00000000-0000-0000-0000-000000000000')).toStrictEqual(
 			'00000000-0000-0000-0000-000000000000',
 		);
-		assertEquals(out.mod.id('x'), undefined);
-		assertEquals(out.mod.addr({ city: 'a', zip: '12345' }), { city: 'a', zip: '12345' });
-		assertEquals(out.mod.addr({ city: 'a', zip: 'x' }), undefined);
+		expect(out.mod.id('x')).toStrictEqual(undefined);
+		expect(out.mod.addr({ city: 'a', zip: '12345' })).toStrictEqual({ city: 'a', zip: '12345' });
+		expect(out.mod.addr({ city: 'a', zip: 'x' })).toStrictEqual(undefined);
 	});
 
 	it('should validate imported schemas', () => {
-		assertEquals(out.mod.user({ name: 'x', email: 'bad', address: { city: 'a', zip: '123' } }), {
+		expect(
+			out.mod.user({ name: 'x', email: 'bad', address: { city: 'a', zip: '123' } }),
+		).toStrictEqual({
 			ok: false,
 			errors: [
 				{
@@ -151,34 +154,40 @@ describe('rolldown', () => {
 		});
 
 		let input = { name: 'xy', email: 'a@b.co', address: { city: 'a', zip: '12345' } };
-		assertEquals(out.mod.user(input), { ok: true, value: input });
+		expect(out.mod.user(input)).toStrictEqual({ ok: true, value: input });
 	});
 
 	it('should validate re-exported recursive schemas', () => {
 		let input = { value: 1, children: [{ value: 2, children: [] }] };
-		assertEquals(out.mod.tree(input), input);
-		assertEquals(out.mod.tree({ value: 1, children: [{ value: 'x', children: [] }] }), undefined);
+		expect(out.mod.tree(input)).toStrictEqual(input);
+		expect(out.mod.tree({ value: 1, children: [{ value: 'x', children: [] }] })).toStrictEqual(
+			undefined,
+		);
 	});
 
 	it('should validate local and namespace schemas', () => {
-		assertEquals(out.mod.local({ id: 1 }), { ok: true, value: { id: 1 } });
-		assertEquals(out.mod.local({ id: 0 }), {
+		expect(out.mod.local({ id: 1 })).toStrictEqual({ ok: true, value: { id: 1 } });
+		expect(out.mod.local({ id: 0 })).toStrictEqual({
 			ok: false,
-			errors: [{
-				instanceLocation: '/id',
-				keywordLocation: '/properties/id/minimum',
-				error: 'must be >= 1',
-			}],
+			errors: [
+				{
+					instanceLocation: '/id',
+					keywordLocation: '/properties/id/minimum',
+					error: 'must be >= 1',
+				},
+			],
 		});
-		assertEquals(out.mod.address({ city: 'a', zip: '12345' }), { city: 'a', zip: '12345' });
+		expect(out.mod.address({ city: 'a', zip: '12345' })).toStrictEqual({ city: 'a', zip: '12345' });
 	});
 
 	it('should throw ValidationError for inline schemas', () => {
-		assertEquals(out.mod.inline([1, 2]), [1, 2]);
-		let err = assertThrows(() => out.mod.inline([1, 2, 3]));
-		assert(err instanceof Error);
-		assertEquals(err.name, 'ValidationError');
-		assertEquals(err.message, 'must NOT have more than 2 items');
+		expect(out.mod.inline([1, 2])).toStrictEqual([1, 2]);
+		expect(() => out.mod.inline([1, 2, 3])).toThrow(
+			expect.objectContaining({
+				name: 'ValidationError',
+				message: 'must NOT have more than 2 items',
+			}),
+		);
 	});
 });
 
@@ -212,16 +221,16 @@ describe('rolldown (dynamic)', () => {
 	});
 
 	it('should keep the runtime compiler', () => {
-		assertMatch(out.code, /new Function/);
-		assertNotMatch(out.code, /tschema:\w+-[\da-f]{8}/);
+		expect(out.code).toMatch(/new Function/);
+		expect(out.code).not.toMatch(/tschema:\w+-[\da-f]{8}/);
 	});
 
 	it('should validate at runtime', () => {
-		assertEquals(out.mod.mutable({ a: 'x' }), { a: 'x' });
-		assertEquals(out.mod.mutated({ a: 'x', b: 1 }), { a: 'x', b: 1 });
-		assertEquals(out.mod.factory(4), undefined);
-		assertEquals(out.mod.factory(5), 5);
-		assertEquals(out.mod.shadow('x'), 'x');
+		expect(out.mod.mutable({ a: 'x' })).toStrictEqual({ a: 'x' });
+		expect(out.mod.mutated({ a: 'x', b: 1 })).toStrictEqual({ a: 'x', b: 1 });
+		expect(out.mod.factory(4)).toStrictEqual(undefined);
+		expect(out.mod.factory(5)).toStrictEqual(5);
+		expect(out.mod.shadow('x')).toStrictEqual('x');
 	});
 });
 
@@ -237,7 +246,7 @@ describe('rolldown (suite)', () => {
 	});
 
 	it('should compile every schema', () => {
-		assertNotMatch(out.code, /new Function/);
+		expect(out.code).not.toMatch(/new Function/);
 	});
 
 	it('should pass the JSON-Schema-Test-Suite', () => {
@@ -250,7 +259,7 @@ describe('rolldown (suite)', () => {
 				}
 			}
 		});
-		assertEquals(failures, []);
+		expect(failures).toStrictEqual([]);
 	});
 });
 
@@ -259,7 +268,7 @@ describe('vite', () => {
 
 	const MAIN = `
 		import { parse, validate } from 'tschema/validate';
-		import { Person, Tree } from './schemas.ts';
+		import { Person, Tree } from './schemas';
 
 		export const user = (x: unknown) => validate(Person, x);
 		export const tree = (x: unknown) => parse(Tree, x);
@@ -270,7 +279,7 @@ describe('vite', () => {
 	});
 
 	afterAll(async () => {
-		await Deno.remove(dir, { recursive: true });
+		await rm(dir, { recursive: true });
 	});
 
 	it('should compile in build mode', async () => {
@@ -287,10 +296,10 @@ describe('vite', () => {
 			},
 		});
 		let output = Array.isArray(result) ? result[0] : result;
-		assert('output' in output);
+		if (!('output' in output)) throw new Error('Expected build output');
 		let code = output.output[0].code;
-		assertNotMatch(code, /new Function/);
-		assertMatch(code, /tschema:Person-/);
+		expect(code).not.toMatch(/new Function/);
+		expect(code).toMatch(/tschema:Person-/);
 	});
 
 	it('should compile in dev mode', async () => {
@@ -305,15 +314,13 @@ describe('vite', () => {
 
 		try {
 			let main = await server.transformRequest('/main.ts', { ssr: true });
-			assert(main);
-			assertMatch(main.code, /tschema:Person-/);
+			expect(main?.code).toMatch(/tschema:Person-/);
 
 			let mod = await server.ssrLoadModule('/main.ts');
-			assertEquals(
+			expect(
 				mod.user({ name: 'x', email: 'a@b.co', address: { city: 'a', zip: '12345' } }).ok,
-				false,
-			);
-			assertEquals(mod.tree({ value: 1, children: [] }), { value: 1, children: [] });
+			).toStrictEqual(false);
+			expect(mod.tree({ value: 1, children: [] })).toStrictEqual({ value: 1, children: [] });
 		} finally {
 			await server.close();
 		}

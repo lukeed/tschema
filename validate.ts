@@ -1,9 +1,9 @@
 /**
  * @module
  */
-import { compile, helpers } from './compile.ts';
+import { compile, helpers } from './compile';
 
-import type { Infer, Type } from './mod.ts';
+import type { Infer, Type } from './mod';
 
 /**
  * A single validation error, in the JSON Schema "basic" output format.
@@ -54,6 +54,7 @@ export declare namespace Result {
 	};
 
 	/** An invalid input, with all of its {@link Invalid} errors. */
+	// oxlint-disable-next-line no-unused-vars
 	type Err<T extends Type> = {
 		ok: false;
 		value?: never;
@@ -103,7 +104,7 @@ function helper(name: string): unknown {
 	let value = instances.get(name);
 	if (value === undefined) {
 		let [factory, ...deps] = helpers[name];
-		instances.set(name, value = Reflect.apply(factory, undefined, deps.map(helper)));
+		instances.set(name, (value = Reflect.apply(factory, undefined, deps.map(helper))));
 	}
 	return value;
 }
@@ -118,10 +119,7 @@ function load<T extends Type>(schema: T): Validator<T> {
 		'ValidationError',
 		...args,
 		`${code}return[validate,parse,assert]`,
-	)(
-		ValidationError,
-		...deps.map(helper),
-	);
+	)(ValidationError, ...deps.map(helper));
 
 	cache.set(schema, output);
 	return output;

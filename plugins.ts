@@ -4,8 +4,8 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import * as t from './mod.ts';
-import { compile, helpers } from './compile.ts';
+import * as t from './mod';
+import { compile, helpers } from './compile';
 
 import type { Plugin as RolldownPlugin } from 'rolldown';
 import type { ESTree } from 'rolldown/utils';
@@ -38,9 +38,7 @@ type Binding =
 	| { kind: 'import'; source: string; name: string }
 	| { kind: 'other' };
 
-type Export =
-	| { local: string }
-	| { source: string; name: string };
+type Export = { local: string } | { source: string; name: string };
 
 /**
  * @internal
@@ -78,8 +76,8 @@ function isNode(x: unknown): x is ESTree.Node {
 }
 
 function lang(id: string): 'js' | 'jsx' | 'ts' | 'tsx' | undefined {
-	let match = /[?&]lang\.([jt]sx?)$/.exec(id) ||
-		/\.[cm]?([jt]sx?)$/.exec(id.replace(/[?#].*$/, ''));
+	let match =
+		/[?&]lang\.([jt]sx?)$/.exec(id) || /\.[cm]?([jt]sx?)$/.exec(id.replace(/[?#].*$/, ''));
 	if (match) return match[1] === 'ts' || match[1] === 'tsx' || match[1] === 'jsx' ? match[1] : 'js';
 }
 
@@ -116,7 +114,8 @@ function lexical(body: ESTree.Node[], out: Set<string>) {
 		if (node.type === 'VariableDeclaration' && node.kind !== 'var') {
 			for (let d of node.declarations) declare(d.id, out);
 		} else if (
-			(node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id
+			(node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') &&
+			node.id
 		) {
 			out.add(node.id.name);
 		}
@@ -130,8 +129,9 @@ function hoist(node: unknown, out: Set<string>) {
 	}
 	if (/Function/.test(node.type)) return;
 	for (let value of Object.values(node)) {
-		if (Array.isArray(value)) { for (let v of value) hoist(v, out); }
-		else hoist(value, out);
+		if (Array.isArray(value)) {
+			for (let v of value) hoist(v, out);
+		} else hoist(value, out);
 	}
 }
 
@@ -182,8 +182,9 @@ function walk(
 	let names = scope(node);
 	if (names && names.size) stack = [...stack, names];
 	for (let value of Object.values(node)) {
-		if (Array.isArray(value)) { for (let v of value) walk(v, stack, visit); }
-		else walk(value, stack, visit);
+		if (Array.isArray(value)) {
+			for (let v of value) walk(v, stack, visit);
+		} else walk(value, stack, visit);
 	}
 }
 
@@ -215,11 +216,12 @@ function analyze(id: string, ast: ESTree.Program): Module {
 				mod.bindings.set(s.local.name, {
 					kind: 'import',
 					source: node.source.value,
-					name: s.type === 'ImportSpecifier'
-						? nameOf(s.imported)
-						: s.type === 'ImportDefaultSpecifier'
-						? 'default'
-						: '*',
+					name:
+						s.type === 'ImportSpecifier'
+							? nameOf(s.imported)
+							: s.type === 'ImportDefaultSpecifier'
+								? 'default'
+								: '*',
 				});
 			}
 			continue;
@@ -235,7 +237,8 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			if (d.type === 'Identifier') {
 				mod.exports.set('default', { local: d.name });
 			} else if (
-				d.type !== 'FunctionDeclaration' && d.type !== 'ClassDeclaration' &&
+				d.type !== 'FunctionDeclaration' &&
+				d.type !== 'ClassDeclaration' &&
 				d.type !== 'TSInterfaceDeclaration'
 			) {
 				mod.bindings.set('*default*', { kind: 'const', init: d });
@@ -276,27 +279,31 @@ function analyze(id: string, ast: ESTree.Program): Module {
 				}
 			}
 		} else if (
-			(node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id
+			(node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') &&
+			node.id
 		) {
 			mod.bindings.set(node.id.name, { kind: 'other' });
 		}
 	}
 
 	walk(ast, [], (node) => {
-		let target = node.type === 'AssignmentExpression'
-			? node.left
-			: node.type === 'UpdateExpression' ||
-					(node.type === 'UnaryExpression' && node.operator === 'delete')
-			? node.argument
-			: undefined;
+		let target =
+			node.type === 'AssignmentExpression'
+				? node.left
+				: node.type === 'UpdateExpression' ||
+					  (node.type === 'UnaryExpression' && node.operator === 'delete')
+					? node.argument
+					: undefined;
 		let name = target && target.type === 'MemberExpression' && root(target);
 		if (name) mod.mutated.add(name);
 		if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression') {
 			for (let arg of node.arguments) {
-				name = arg.type === 'Identifier' &&
+				name =
+					arg.type === 'Identifier' &&
 					/^(assign|defineProperty|defineProperties|setPrototypeOf)$/.test(
 						node.callee.property.type === 'Identifier' ? node.callee.property.name : '',
-					) && arg.name;
+					) &&
+					arg.name;
 				if (name) mod.mutated.add(name);
 			}
 		}
@@ -310,10 +317,10 @@ function load(s: Session, id: string): Promise<Module> {
 	if (!mod) {
 		s.modules.set(
 			id,
-			mod = readFile(id.replace(/[?#].*$/, ''), 'utf8').then((code) => {
+			(mod = readFile(id.replace(/[?#].*$/, ''), 'utf8').then((code) => {
 				s.ctx.addWatchFile(id);
 				return analyze(id, s.ctx.parse(code, { lang: lang(id) || 'js' }));
-			}),
+			})),
 		);
 	}
 	return mod;
@@ -348,13 +355,14 @@ function binding(s: Session, mod: Module, name: string): Promise<unknown> {
 	let value = mod.values.get(name);
 	if (!value) {
 		let b = mod.bindings.get(name);
-		value = !b || b.kind === 'other' || mod.mutated.has(name)
-			? Promise.reject(new Dynamic())
-			: b.kind === 'const'
-			? evaluate(s, mod, b.init, new Map(), [])
-			: b.name === '*'
-			? Promise.reject(new Dynamic())
-			: exported(s, mod, b.source, b.name);
+		value =
+			!b || b.kind === 'other' || mod.mutated.has(name)
+				? Promise.reject(new Dynamic())
+				: b.kind === 'const'
+					? evaluate(s, mod, b.init, new Map(), [])
+					: b.name === '*'
+						? Promise.reject(new Dynamic())
+						: exported(s, mod, b.source, b.name);
 		mod.values.set(name, value);
 	}
 	return value;
@@ -371,8 +379,11 @@ function builder(mod: Module, callee: ESTree.Node, stack: Set<string>[]): string
 	if (!b || b.kind !== 'import' || !CORE.has(b.source)) return;
 	if (callee.type === 'Identifier') return b.name === '*' ? undefined : b.name;
 	if (
-		b.name === '*' && callee.type === 'MemberExpression' && !callee.computed &&
-		callee.object.type === 'Identifier' && callee.property.type === 'Identifier'
+		b.name === '*' &&
+		callee.type === 'MemberExpression' &&
+		!callee.computed &&
+		callee.object.type === 'Identifier' &&
+		callee.property.type === 'Identifier'
 	) {
 		return callee.property.name;
 	}
@@ -381,7 +392,8 @@ function builder(mod: Module, callee: ESTree.Node, stack: Set<string>[]): string
 function key(node: ESTree.PropertyKey, computed: boolean): string {
 	if (!computed && node.type === 'Identifier') return node.name;
 	if (
-		node.type === 'Literal' && (typeof node.value === 'string' || typeof node.value === 'number')
+		node.type === 'Literal' &&
+		(typeof node.value === 'string' || typeof node.value === 'number')
 	) {
 		return String(node.value);
 	}
@@ -470,7 +482,8 @@ async function evaluate(
 			}
 			let name = node.property.name;
 			if (
-				node.object.type === 'Identifier' && !env.has(node.object.name) &&
+				node.object.type === 'Identifier' &&
+				!env.has(node.object.name) &&
 				!shadowed(node.object.name, stack)
 			) {
 				let b = mod.bindings.get(node.object.name);
@@ -478,7 +491,8 @@ async function evaluate(
 			}
 			let value = await evaluate(s, mod, node.object, env, stack);
 			if (
-				typeof value === 'object' && value !== null &&
+				typeof value === 'object' &&
+				value !== null &&
 				Object.prototype.hasOwnProperty.call(value, name)
 			) {
 				return Reflect.get(value, name);
@@ -493,10 +507,13 @@ async function evaluate(
 
 			if (name === 'recursive') {
 				let [id, define] = node.arguments;
-				let value = id && await evaluate(s, mod, id, env, stack);
+				let value = id && (await evaluate(s, mod, id, env, stack));
 				if (
-					typeof value !== 'string' || !define || define.type !== 'ArrowFunctionExpression' ||
-					define.params.length !== 1 || define.params[0].type !== 'Identifier'
+					typeof value !== 'string' ||
+					!define ||
+					define.type !== 'ArrowFunctionExpression' ||
+					define.params.length !== 1 ||
+					define.params[0].type !== 'Identifier'
 				) {
 					throw new Dynamic();
 				}
@@ -538,8 +555,11 @@ function emit(schema: unknown, from: string): string {
 	if (deps.length) {
 		out += `import { ${deps.map((d) => '$' + d).join(', ')} } from "${PREFIX}helpers";\n`;
 	}
-	return out + code +
-		`\nexport const schema = ${JSON.stringify(schema)};\nexport { validate, parse, assert };\n`;
+	return (
+		out +
+		code +
+		`\nexport const schema = ${JSON.stringify(schema)};\nexport { validate, parse, assert };\n`
+	);
 }
 
 /**
@@ -547,15 +567,16 @@ function emit(schema: unknown, from: string): string {
  * Generate the shared helpers module, in dependency order.
  */
 function shared(): string {
-	let out = '', done = new Set<string>();
+	let out = '',
+		done = new Set<string>();
 	let add = (name: string) => {
 		if (done.has(name)) return;
 		let [factory, ...deps] = helpers[name];
 		for (let d of deps) add(d);
 		done.add(name);
-		out += `export const $${name} = /* @__PURE__ */ (${factory})(${
-			deps.map((d) => '$' + d).join(', ')
-		});\n`;
+		out += `export const $${name} = /* @__PURE__ */ (${factory})(${deps
+			.map((d) => '$' + d)
+			.join(', ')});\n`;
 	};
 	for (let name in helpers) add(name);
 	return out;
@@ -564,7 +585,8 @@ function shared(): string {
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 function vlq(n: number): string {
-	let v = n < 0 ? (-n << 1) | 1 : n << 1, out = '';
+	let v = n < 0 ? (-n << 1) | 1 : n << 1,
+		out = '';
 	do {
 		let digit = v & 31;
 		v >>>= 5;
@@ -578,8 +600,11 @@ function vlq(n: number): string {
  * Apply sorted, non-overlapping edits and build a line + column sourcemap.
  */
 function apply(id: string, code: string, edits: Edit[]) {
-	let out = '', lines: number[][][] = [[]];
-	let gen = 0, line = 0, col = 0;
+	let out = '',
+		lines: number[][][] = [[]];
+	let gen = 0,
+		line = 0,
+		col = 0;
 
 	let mark = () => lines[lines.length - 1].push([gen, line, col]);
 	let write = (text: string, original: boolean) => {
@@ -589,7 +614,10 @@ function apply(id: string, code: string, edits: Edit[]) {
 			if (text[i] === '\n') {
 				lines.push([]);
 				gen = 0;
-				if (original) line++, col = 0;
+				if (original) {
+					line++;
+					col = 0;
+				}
 				if (i + 1 < text.length) mark();
 			} else {
 				gen++;
@@ -599,8 +627,12 @@ function apply(id: string, code: string, edits: Edit[]) {
 	};
 	let skip = (text: string) => {
 		for (let ch of text) {
-			if (ch === '\n') line++, col = 0;
-			else col += ch.length;
+			if (ch === '\n') {
+				line++;
+				col = 0;
+			} else {
+				col += ch.length;
+			}
 		}
 	};
 
@@ -614,15 +646,19 @@ function apply(id: string, code: string, edits: Edit[]) {
 	write(code.slice(pos), true);
 
 	let prev = [0, 0],
-		mappings = lines.map((segments) => {
-			let last = 0;
-			return segments.map(([g, l, c]) => {
-				let s = vlq(g - last) + 'A' + vlq(l - prev[0]) + vlq(c - prev[1]);
-				last = g;
-				prev = [l, c];
-				return s;
-			}).join(',');
-		}).join(';');
+		mappings = lines
+			.map((segments) => {
+				let last = 0;
+				return segments
+					.map(([g, l, c]) => {
+						let s = vlq(g - last) + 'A' + vlq(l - prev[0]) + vlq(c - prev[1]);
+						last = g;
+						prev = [l, c];
+						return s;
+					})
+					.join(',');
+			})
+			.join(';');
 
 	return {
 		code: out,
@@ -678,14 +714,19 @@ function plugin() {
 				let name = callee.type === 'Identifier' ? callee.name : root(callee);
 				let b = name && !shadowed(name, stack) && mod.bindings.get(name);
 				if (!b || b.kind !== 'import' || !VALIDATE.has(b.source)) return;
-				let api = callee.type === 'Identifier'
-					? b.name
-					: b.name === '*' && callee.type === 'MemberExpression' && !callee.computed &&
-							callee.object.type === 'Identifier' && callee.property.type === 'Identifier'
-					? callee.property.name
-					: '';
+				let api =
+					callee.type === 'Identifier'
+						? b.name
+						: b.name === '*' &&
+							  callee.type === 'MemberExpression' &&
+							  !callee.computed &&
+							  callee.object.type === 'Identifier' &&
+							  callee.property.type === 'Identifier'
+							? callee.property.name
+							: '';
 				if (
-					API.has(api) && node.arguments.length === 2 &&
+					API.has(api) &&
+					node.arguments.length === 2 &&
 					node.arguments.every((a) => a.type !== 'SpreadElement')
 				) {
 					calls.push([node, api, b.source, stack]);
@@ -707,7 +748,10 @@ function plugin() {
 				if (typeof schema !== 'object' || schema === null) continue;
 
 				let json = JSON.stringify(schema);
-				let hash = createHash('sha256').update(from + json).digest('hex').slice(0, 8);
+				let hash = createHash('sha256')
+					.update(from + json)
+					.digest('hex')
+					.slice(0, 8);
 				let label = arg.type === 'Identifier' ? arg.name : 'schema';
 				let entry = `${label}-${hash}`;
 
@@ -716,7 +760,7 @@ function plugin() {
 				let local = imports.get(entry);
 				if (!local) {
 					let n = imports.size;
-					while (code.includes(local = `__tschema${n}`)) n++;
+					while (code.includes((local = `__tschema${n}`))) n++;
 					imports.set(entry, local);
 				}
 
