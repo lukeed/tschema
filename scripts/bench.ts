@@ -1,7 +1,7 @@
 import * as t from '../mod.ts';
-import { Type } from 'npm:@sinclair/typebox';
-import { zodToJsonSchema } from 'npm:zod-to-json-schema';
-import { z } from 'npm:zod';
+import { Type } from '@sinclair/typebox';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { z } from 'zod';
 
 Deno.bench('tschema', { group: 'builder' }, () => {
 	let _ = t.object({

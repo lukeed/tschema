@@ -1,7 +1,7 @@
 // deno task release <version>
 
-import { assert } from 'jsr:@std/assert@^1.0';
-import { resolve } from 'jsr:@std/path@^1.0';
+import { assert } from '@std/assert';
+import { resolve } from '@std/path';
 
 const version = Deno.args[0];
 assert(version, 'Missing <version> value!');

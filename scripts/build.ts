@@ -1,5 +1,5 @@
-import { join, resolve } from 'jsr:@std/path@^1.0';
-import oxc from 'npm:oxc-transform@^0.23';
+import { join, resolve } from '@std/path';
+import oxc from 'oxc-transform';
 
 const bytes = 500;
 

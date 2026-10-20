@@ -1,5 +1,5 @@
-import { assert, assertEquals } from 'jsr:@std/assert';
-import { describe, it } from 'jsr:@std/testing/bdd';
+import { assert, assertEquals } from '@std/assert';
+import { describe, it } from '@std/testing/bdd';
 import * as t from './mod.ts';
 
 // TODO: remove [OPTIONAL] key (making it `?: true` breaks Object property infer)
