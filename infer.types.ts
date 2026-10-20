@@ -2,6 +2,10 @@ import * as t from './mod.ts';
 
 declare function assert<T>(value: T): void;
 
+type Equal<A, B> = (<X>() => X extends A ? 1 : 2) extends (<X>() => X extends B ? 1 : 2) ? true
+	: false;
+declare function equal<A, B>(...check: Equal<A, B> extends true ? [] : [never]): void;
+
 const NULL = null;
 const NUMBER = 123;
 const STRING = 'foobar';
@@ -697,12 +701,26 @@ assert<string | number>(ANY1);
 assert<ANY1>(STRING);
 assert<ANY1>(NUMBER);
 
-// @ts-expect-error; must all be string
+// impossible intersection
 let all1 = t.all(t.string(), t.number());
 type ALL1 = t.Infer<typeof all1>;
-declare let ALL1: ALL1;
-assert<string>(ALL1);
-assert<ALL1>(STRING);
+equal<ALL1, never>();
+
+let all2 = t.all(
+	t.object({ name: t.string() }, { additionalProperties: true }),
+	t.object({ age: t.optional(t.integer()) }, { additionalProperties: true }),
+);
+type ALL2 = t.Infer<typeof all2>;
+declare let ALL2: ALL2;
+assert<{ name: string; age?: number }>(ALL2);
+assert<ALL2>({ name: STRING });
+assert<ALL2>({ name: STRING, age: NUMBER });
+
+// @ts-expect-error; missing name
+assert<ALL2>({ age: NUMBER });
+
+let all3 = t.all(t.boolean(), t.constant(true));
+equal<t.Infer<typeof all3>, true>();
 
 let one1 = t.one(t.string(), t.number(), t.boolean());
 type ONE1 = t.Infer<typeof one1>;
@@ -802,3 +820,121 @@ let d2 = t.dict(
 
 declare let D2: t.Infer<typeof d2>;
 assert<Record<string, string[]>>(D2);
+
+// ---
+// EXACT
+// ---
+
+equal<t.Infer<ReturnType<typeof t.unknown>>, unknown>();
+equal<t.Infer<ReturnType<typeof t.null>>, null>();
+equal<t.Infer<ReturnType<typeof t.boolean>>, boolean>();
+equal<t.Infer<ReturnType<typeof t.string>>, string>();
+
+let x1 = t.not(t.string());
+equal<t.Infer<typeof x1>, unknown>();
+
+let x2 = t.array();
+equal<t.Infer<typeof x2>, unknown[]>();
+
+let x3 = t.string({ enum: ['foo', 'bar'] });
+equal<t.Infer<typeof x3>, 'foo' | 'bar'>();
+
+let x4 = t.integer({ enum: [1, 2] });
+equal<t.Infer<typeof x4>, 1 | 2>();
+
+let x5 = t.enum(['foo', 1, null]);
+equal<t.Infer<typeof x5>, 'foo' | 1 | null>();
+
+let x6 = t.object();
+equal<t.Infer<typeof x6>, Record<string, unknown>>();
+
+let x7 = t.object({
+	a: t.unknown(),
+	b: t.optional(t.array()),
+	c: t.dict(t.string()),
+	d: t.tuple([t.string(), t.integer()]),
+	e: t.readonly(t.object({ f: t.null() })),
+});
+equal<t.Infer<typeof x7>, {
+	a: unknown;
+	b?: unknown[];
+	c: Record<string, string>;
+	d: [string, number];
+	e: { readonly f: null };
+}>();
+
+let x8 = t.partial(t.object({ a: t.string(), b: t.optional(t.number()) }));
+equal<t.Infer<typeof x8>, { a?: string; b?: number }>();
+
+let x9 = t.readonly(t.tuple([t.string()]));
+equal<t.Infer<typeof x9>, readonly [string]>();
+
+// ---
+// RECURSIVE
+// ---
+
+let r1 = t.recursive('Tree', (self) =>
+	t.object({
+		value: t.string(),
+		children: t.array(self),
+	}));
+
+type R1 = t.Infer<typeof r1>;
+type Tree = { value: string; children: Tree[] };
+declare let R1: R1;
+assert<Tree>(R1);
+assert<R1>({ value: STRING, children: [{ value: STRING, children: [] }] });
+let _r1: string = R1.children[0].children[0].children[0].value;
+
+// @ts-expect-error; children must be a Tree
+assert<R1>({ value: STRING, children: [STRING] });
+
+let r2 = t.recursive('List', (list) =>
+	t.object({
+		head: t.integer(),
+		tail: t.any(t.null(), list),
+		tree: t.optional(r1),
+	}));
+
+type R2 = t.Infer<typeof r2>;
+declare let R2: R2;
+let _r2a: number | undefined = R2.tail?.tail?.head;
+let _r2b: string | undefined = R2.tail?.tree?.children[0].value;
+
+let r3 = t.recursive('Outer', (outer) =>
+	t.object({
+		inner: t.optional(t.recursive('Inner', (inner) =>
+			t.object({
+				up: t.optional(outer),
+				self: t.optional(inner),
+				name: t.string(),
+			}))),
+		id: t.integer(),
+	}));
+
+declare let R3: t.Infer<typeof r3>;
+let _r3a: number | undefined = R3.inner?.up?.id;
+let _r3b: string | undefined = R3.inner?.self?.self?.name;
+
+// ---
+// DEPTH
+// ---
+
+let d5 = t.object({ v: t.string(), n: t.optional(t.integer()) });
+let d4 = t.object({ a: d5, list: t.array(d5), u: t.any(d5, t.null()) });
+let d3 = t.object({ a: d4, list: t.array(d4), u: t.one(d4, d5) });
+let d2b = t.object({ a: d3, list: t.array(d3), x: t.all(d3, t.object({ y: t.boolean() })) });
+let d1b = t.object({ a: d2b, d: t.dict(d2b), tup: t.tuple([d2b, t.readonly(d3)]) });
+let d0 = t.object({ a: d1b, b: t.array(d1b), c: t.optional(d1b) });
+
+declare let D0: t.Infer<typeof d0>;
+let _d0a: string = D0.a.a.a.a.a.v;
+let _d0b: string = D0.b[0].tup[1].list[0].a.v;
+let _d0c: boolean = D0.c!.d.key.x.y;
+
+function generic<T extends t.Type>(schema: T, input: unknown): t.Infer<T> | undefined {
+	let output: t.Infer<T> | undefined;
+	return schema && input ? output : undefined;
+}
+
+let _d0d: string | undefined = generic(d0, {})?.c?.a.a.a.a.v;

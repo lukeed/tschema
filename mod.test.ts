@@ -786,6 +786,15 @@ describe('t.any', () => {
 });
 
 describe('t.all', () => {
+	it('should accept mixed types', () => {
+		let output = t.all(
+			t.object({ a: t.string() }, { additionalProperties: true }),
+			t.object({ b: t.number() }, { additionalProperties: true }),
+		);
+
+		assertEquals(output.allOf.length, 2);
+	});
+
 	it('should be a function', () => {
 		assert(typeof t.all === 'function');
 	});
@@ -807,6 +816,34 @@ describe('t.all', () => {
 					minimum: 0,
 				},
 			],
+		});
+	});
+});
+
+describe('t.recursive', () => {
+	it('should be a function', () => {
+		assert(typeof t.recursive === 'function');
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.recursive('Tree', (self) =>
+			t.object({
+				value: t.string(),
+				children: t.array(self),
+			}));
+
+		assertEquals(output, {
+			$id: 'Tree',
+			type: 'object',
+			additionalProperties: false,
+			required: ['value', 'children'],
+			properties: {
+				value: { type: 'string' },
+				children: {
+					type: 'array',
+					items: { $ref: 'Tree' },
+				},
+			},
 		});
 	});
 });
