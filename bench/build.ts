@@ -1,5 +1,6 @@
 // bun bench/build.ts
 // Bundle `bench/aot.ts` with and without the compiler plugin.
+// Bundle `bench/zod.ts` so that node can import it.
 
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -35,3 +36,8 @@ async function bundle(file: string, aot: boolean) {
 await bundle('aot.mjs', true);
 await bundle('runtime.mjs', false);
 await writeFile(join(import.meta.dir, 'dist/aot.d.mts'), "export * from '../aot';\n");
+
+let b = await rolldown({ input: join(import.meta.dir, 'zod.ts'), external: [/^zod/] });
+await b.write({ file: join(import.meta.dir, 'dist/zod.mjs'), format: 'esm' });
+await b.close();
+await writeFile(join(import.meta.dir, 'dist/zod.d.mts'), "export * from '../zod';\n");
