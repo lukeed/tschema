@@ -27,7 +27,7 @@
 		"typebox": "^1.4.2",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
-		"zod": "^3.23.8",
+		"zod": "^4.6.7",
 		"zod-to-json-schema": "^3.23.5"
 	}
 }

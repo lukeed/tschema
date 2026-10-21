@@ -1,6 +1,8 @@
 import { Type } from 'typebox';
 import { bench, run, summary } from 'mitata';
-import { z } from 'zod';
+import * as z4 from 'zod';
+import * as zm from 'zod/mini';
+import { z } from 'zod/v3';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import * as t from '../npm/index.mjs';
 
@@ -92,6 +94,40 @@ summary(() => {
 		});
 
 		return zodToJsonSchema(zod);
+	});
+
+	bench('zod', () => {
+		let zod = z4.object({
+			uid: z4.int(),
+			name: z4.string().describe('full name'),
+			isActive: z4.boolean(),
+			avatar: z4.optional(z4.url()),
+			achievements: z4.tuple([
+				z4.number().min(0), // points
+				z4.enum(['novice', 'pro', 'expert', 'master']),
+			]),
+			interests: z4.array(z4.string().min(4).max(36)),
+			last_updated: z4.int().min(0).describe('unix seconds'),
+		});
+
+		return z4.toJSONSchema(zod);
+	});
+
+	bench('zod/mini', () => {
+		let zod = zm.object({
+			uid: zm.int(),
+			name: zm.string().check(zm.describe('full name')),
+			isActive: zm.boolean(),
+			avatar: zm.optional(zm.url()),
+			achievements: zm.tuple([
+				zm.number().check(zm.gte(0)), // points
+				zm.enum(['novice', 'pro', 'expert', 'master']),
+			]),
+			interests: zm.array(zm.string().check(zm.minLength(4), zm.maxLength(36))),
+			last_updated: zm.int().check(zm.gte(0), zm.describe('unix seconds')),
+		});
+
+		return zm.toJSONSchema(zod);
 	});
 });
 

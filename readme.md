@@ -228,9 +228,11 @@ bun run bench
 
 | benchmark | bun | node |
 | --- | --- | --- |
-| tschema | 168.53 ns | 151.44 ns |
-| typebox (1.4) | 1.82 µs | 3.63 µs |
-| zod-to-json-schema | 18.52 µs | 19.36 µs |
+| tschema | 162.96 ns | 147.32 ns |
+| typebox (1.4) | 1.89 µs | 3.67 µs |
+| zod-to-json-schema (zod 3) | 17.41 µs | 20.00 µs |
+| zod (4.6) | 36.31 µs | 61.35 µs |
+| zod/mini (4.6) | 29.07 µs | 45.52 µs |
 
 ### Validation
 
@@ -238,33 +240,45 @@ The `(aot)` rows use the output of the [compiler plugin](#compiler). They run th
 
 TypeBox (1.4) compiles the same JSON schema with `typebox/schema`. Its `Check` method is compared with `parse`, and its `Errors` method with `validate`.
 
+Zod (4.6) and Zod Mini use an equivalent schema with `z.strictObject`. Zod has no first-error mode, so its `safeParse` is in both the "all errors" and "first error" groups. Its "compile" row is schema construction plus the first `safeParse` call.
+
 | benchmark | bun | node |
 | --- | --- | --- |
 | **all errors (valid)** | | |
-| tschema/validate | 180.77 ns | 142.53 ns |
-| tschema/validate (aot) | 161.52 ns | 144.73 ns |
-| ajv (allErrors) | 185.90 ns | 236.67 ns |
-| typebox (Errors) | 12.82 µs | 17.46 µs |
+| tschema/validate | 144.11 ns | 136.39 ns |
+| tschema/validate (aot) | 141.66 ns | 137.33 ns |
+| ajv (allErrors) | 187.32 ns | 244.93 ns |
+| typebox (Errors) | 13.54 µs | 16.90 µs |
+| zod (safeParse) | 1.13 µs | 1.20 µs |
+| zod/mini (safeParse) | 1.62 µs | 1.86 µs |
 | **first error (valid)** | | |
-| tschema/parse | 162.52 ns | 136.24 ns |
-| tschema/parse (aot) | 162.18 ns | 130.76 ns |
-| ajv | 191.85 ns | 231.62 ns |
-| typebox (Check) | 291.89 ns | 260.32 ns |
+| tschema/parse | 143.86 ns | 142.53 ns |
+| tschema/parse (aot) | 136.99 ns | 133.70 ns |
+| ajv | 190.55 ns | 230.22 ns |
+| typebox (Check) | 254.97 ns | 265.63 ns |
+| zod (safeParse) | 1.13 µs | 1.21 µs |
+| zod/mini (safeParse) | 1.62 µs | 1.85 µs |
 | **all errors (invalid)** | | |
-| tschema/validate | 160.21 ns | 127.71 ns |
-| tschema/validate (aot) | 150.19 ns | 125.26 ns |
-| ajv (allErrors) | 226.70 ns | 217.31 ns |
-| typebox (Errors) | 11.14 µs | 17.13 µs |
+| tschema/validate | 151.26 ns | 125.89 ns |
+| tschema/validate (aot) | 147.46 ns | 122.15 ns |
+| ajv (allErrors) | 213.27 ns | 207.22 ns |
+| typebox (Errors) | 11.12 µs | 16.45 µs |
+| zod (safeParse) | 2.06 µs | 3.34 µs |
+| zod/mini (safeParse) | 3.14 µs | 4.46 µs |
 | **first error (invalid)** | | |
-| tschema/parse | 10.53 ns | 7.77 ns |
-| tschema/parse (aot) | 4.59 ns | 4.27 ns |
-| ajv | 35.36 ns | 56.53 ns |
-| typebox (Check) | 126.54 ns | 106.40 ns |
+| tschema/parse | 9.38 ns | 7.82 ns |
+| tschema/parse (aot) | 4.57 ns | 4.24 ns |
+| ajv | 34.71 ns | 49.92 ns |
+| typebox (Check) | 101.52 ns | 105.58 ns |
+| zod (safeParse) | 2.14 µs | 3.37 µs |
+| zod/mini (safeParse) | 3.00 µs | 4.46 µs |
 | **compile** | | |
-| tschema/validate | 47.11 µs | 37.71 µs |
+| tschema/validate | 47.54 µs | 36.40 µs |
 | tschema/validate (aot) | – | – |
-| typebox | 38.62 µs | 40.89 µs |
-| ajv | 6.20 ms | 5.23 ms |
+| typebox | 35.53 µs | 38.40 µs |
+| zod | 128.73 µs | 105.44 µs |
+| zod/mini | 26.36 µs | 47.66 µs |
+| ajv | 6.13 ms | 5.58 ms |
 
 The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 4.8 kB gzip with the plugin and 7.9 kB without it.
 
