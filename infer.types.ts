@@ -1036,3 +1036,18 @@ equal<t.Infer<typeof ar6>, string[] | null>();
 
 type AR7 = t.array<t.string>;
 equal<t.Infer<AR7>, string[]>();
+
+// items whose inferred type looks like Annotations (eg, `description`)
+// were assignable to `Type`, so 3.2.0 resolved the array as a tuple -> `Type[]`
+let ar8 = t.array(
+	t.object({
+		id: t.string(),
+		title: t.string(),
+		description: t.string(),
+		deprecated: t.optional(t.boolean()),
+	}),
+);
+equal<
+	t.Infer<typeof ar8>,
+	{ id: string; title: string; description: string; deprecated?: boolean }[]
+>();
