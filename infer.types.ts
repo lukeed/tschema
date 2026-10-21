@@ -1011,3 +1011,28 @@ equal<
 
 let rq5 = t.partial(rq1);
 equal<t.Infer<typeof rq5>, { a?: string; b?: string; c?: number }>();
+
+// ---
+// ARRAY / NOT A TUPLE
+// ---
+
+let ar1 = t.array(t.object({ id: t.integer() }));
+equal<t.Infer<typeof ar1>, { id: number }[]>();
+
+let ar2 = t.array(t.unknown());
+equal<t.Infer<typeof ar2>, unknown[]>();
+
+let ar3 = t.array(t.object({ a: t.optional(t.string()) }));
+equal<t.Infer<typeof ar3>, { a?: string }[]>();
+
+let ar4 = t.array(t.array(t.number()), { minItems: 1 });
+equal<t.Infer<typeof ar4>, number[][]>();
+
+let ar5 = t.object({ list: t.array(t.unknown()), pair: t.tuple([t.string(), t.number()]) });
+equal<t.Infer<typeof ar5>, { list: unknown[]; pair: [string, number] }>();
+
+let ar6 = t.any(t.array(t.string()), t.null());
+equal<t.Infer<typeof ar6>, string[] | null>();
+
+type AR7 = t.array<t.string>;
+equal<t.Infer<AR7>, string[]>();
