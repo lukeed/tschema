@@ -2,6 +2,7 @@
 node_modules
 
 /npm
-/jsr.json
+/jsr
 /coverage
 *.lcov
+/bench/dist

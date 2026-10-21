@@ -1,17 +1,16 @@
-import { assert, assertEquals } from 'jsr:@std/assert';
-import { describe, it } from 'jsr:@std/testing/bdd';
-import * as t from './mod.ts';
+import { describe, expect, it } from 'bun:test';
+import * as t from './mod';
 
 // TODO: remove [OPTIONAL] key (making it `?: true` breaks Object property infer)
 
 describe('Null', () => {
 	it('should be a function', () => {
-		assert(typeof t.null === 'function');
+		expect(typeof t.null === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/null
 	it('should be JSON schema', () => {
-		assertEquals(t.null(), {
+		expect(t.null()).toStrictEqual({
 			type: 'null',
 		});
 	});
@@ -22,7 +21,7 @@ describe('Null', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'null',
 			deprecated: true,
 			description: 'hello',
@@ -35,7 +34,7 @@ describe('Null', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'null',
 		});
 	});
@@ -43,12 +42,12 @@ describe('Null', () => {
 
 describe('Unknown', () => {
 	it('should be a function', () => {
-		assert(typeof t.unknown === 'function');
+		expect(typeof t.unknown === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/null
 	it('should be JSON schema', () => {
-		assertEquals(t.unknown(), {
+		expect(t.unknown()).toStrictEqual({
 			// empty
 		});
 	});
@@ -59,7 +58,7 @@ describe('Unknown', () => {
 			description: 'foobar',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			deprecated: true,
 			description: 'foobar',
 		});
@@ -71,7 +70,7 @@ describe('Unknown', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'null',
 		});
 	});
@@ -79,12 +78,12 @@ describe('Unknown', () => {
 
 describe('Constant', () => {
 	it('should be a function', () => {
-		assert(typeof t.constant === 'function');
+		expect(typeof t.constant === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/const
 	it('should be JSON schema', () => {
-		assertEquals(t.constant('hello'), {
+		expect(t.constant('hello')).toStrictEqual({
 			const: 'hello',
 		});
 	});
@@ -95,7 +94,7 @@ describe('Constant', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			const: 123,
 			deprecated: true,
 			description: 'hello',
@@ -105,12 +104,12 @@ describe('Constant', () => {
 
 describe('Boolean', () => {
 	it('should be a function', () => {
-		assert(typeof t.boolean === 'function');
+		expect(typeof t.boolean === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/boolean
 	it('should be JSON schema', () => {
-		assertEquals(t.boolean(), {
+		expect(t.boolean()).toStrictEqual({
 			type: 'boolean',
 		});
 	});
@@ -122,7 +121,7 @@ describe('Boolean', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'boolean',
 			deprecated: true,
 			description: 'hello',
@@ -136,7 +135,7 @@ describe('Boolean', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'boolean',
 		});
 	});
@@ -144,12 +143,12 @@ describe('Boolean', () => {
 
 describe('String', () => {
 	it('should be a function', () => {
-		assert(typeof t.string === 'function');
+		expect(typeof t.string === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/string
 	it('should be JSON schema', () => {
-		assertEquals(t.string(), {
+		expect(t.string()).toStrictEqual({
 			type: 'string',
 		});
 	});
@@ -161,7 +160,7 @@ describe('String', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'string',
 			deprecated: true,
 			description: 'hello',
@@ -175,7 +174,7 @@ describe('String', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'string',
 		});
 	});
@@ -186,7 +185,7 @@ describe('String', () => {
 			default: 'baz',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'string',
 			enum: ['foo', 'bar', 'baz'],
 			default: 'baz',
@@ -196,12 +195,12 @@ describe('String', () => {
 
 describe('Integer', () => {
 	it('should be a function', () => {
-		assert(typeof t.integer === 'function');
+		expect(typeof t.integer === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/numeric
 	it('should be JSON schema', () => {
-		assertEquals(t.integer(), {
+		expect(t.integer()).toStrictEqual({
 			type: 'integer',
 		});
 	});
@@ -213,7 +212,7 @@ describe('Integer', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'integer',
 			deprecated: true,
 			description: 'hello',
@@ -227,7 +226,7 @@ describe('Integer', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'integer',
 		});
 	});
@@ -238,7 +237,7 @@ describe('Integer', () => {
 			default: 2,
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'integer',
 			enum: [1, 2, 3],
 			default: 2,
@@ -248,12 +247,12 @@ describe('Integer', () => {
 
 describe('Number', () => {
 	it('should be a function', () => {
-		assert(typeof t.number === 'function');
+		expect(typeof t.number === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/numeric
 	it('should be JSON schema', () => {
-		assertEquals(t.number(), {
+		expect(t.number()).toStrictEqual({
 			type: 'number',
 		});
 	});
@@ -265,7 +264,7 @@ describe('Number', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'number',
 			deprecated: true,
 			description: 'hello',
@@ -279,7 +278,7 @@ describe('Number', () => {
 			type: 'other',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'number',
 		});
 	});
@@ -290,7 +289,7 @@ describe('Number', () => {
 			default: 2,
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'number',
 			enum: [1, 2, 3],
 			default: 2,
@@ -300,12 +299,12 @@ describe('Number', () => {
 
 describe('Enum', () => {
 	it('should be a function', () => {
-		assert(typeof t.enum === 'function');
+		expect(typeof t.enum === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/enum
 	it('should be JSON schema', () => {
-		assertEquals(t.enum([]), {
+		expect(t.enum([])).toStrictEqual({
 			enum: [],
 		});
 	});
@@ -317,7 +316,7 @@ describe('Enum', () => {
 			default: 'foo',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			enum: ['foo', 123],
 			description: 'hello',
 			deprecated: true,
@@ -328,12 +327,12 @@ describe('Enum', () => {
 
 describe('Array', () => {
 	it('should be a function', () => {
-		assert(typeof t.array === 'function');
+		expect(typeof t.array === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/array
 	it('should be JSON schema', () => {
-		assertEquals(t.array(), {
+		expect(t.array()).toStrictEqual({
 			type: 'array',
 			items: undefined,
 		});
@@ -345,7 +344,7 @@ describe('Array', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'array',
 			items: undefined,
 			description: 'hello',
@@ -365,7 +364,7 @@ describe('Array', () => {
 			},
 		);
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'array',
 			description: 'list',
 			default: ['123'],
@@ -380,12 +379,12 @@ describe('Array', () => {
 
 describe('Tuple', () => {
 	it('should be a function', () => {
-		assert(typeof t.tuple === 'function');
+		expect(typeof t.tuple === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/array#tupleValidation
 	it('should be JSON schema', () => {
-		assertEquals(t.tuple(), {
+		expect(t.tuple()).toStrictEqual({
 			type: 'array',
 			prefixItems: undefined,
 			minItems: 0,
@@ -401,7 +400,7 @@ describe('Tuple', () => {
 			maxItems: 0,
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'array',
 			prefixItems: [],
 			description: 'hello',
@@ -412,22 +411,16 @@ describe('Tuple', () => {
 	});
 
 	it('should build "prefixItems" property', () => {
-		let output = t.tuple([
-			t.string(),
-			t.boolean(),
-		], {
+		let output = t.tuple([t.string(), t.boolean()], {
 			description: 'pair',
 			default: ['foo', true],
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'array',
 			description: 'pair',
 			default: ['foo', true],
-			prefixItems: [
-				{ type: 'string' },
-				{ type: 'boolean' },
-			],
+			prefixItems: [{ type: 'string' }, { type: 'boolean' }],
 			minItems: 2,
 			maxItems: 2,
 		});
@@ -440,12 +433,9 @@ describe('Tuple', () => {
 			additionalItems: t.number(),
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'array',
-			prefixItems: [
-				{ type: 'string' },
-				{ type: 'boolean' },
-			],
+			prefixItems: [{ type: 'string' }, { type: 'boolean' }],
 			minItems: 1,
 			maxItems: 5,
 			additionalItems: {
@@ -457,11 +447,11 @@ describe('Tuple', () => {
 
 describe('Dict', () => {
 	it('should be a function', () => {
-		assert(typeof t.dict === 'function');
+		expect(typeof t.dict === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
-		assertEquals(t.dict(t.string()), {
+		expect(t.dict(t.string())).toStrictEqual({
 			type: 'object',
 			additionalProperties: {
 				type: 'string',
@@ -475,7 +465,7 @@ describe('Dict', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'object',
 			deprecated: true,
 			description: 'hello',
@@ -488,12 +478,12 @@ describe('Dict', () => {
 
 describe('Object', () => {
 	it('should be a function', () => {
-		assert(typeof t.object === 'function');
+		expect(typeof t.object === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/object
 	it('should be JSON schema', () => {
-		assertEquals(t.object(), {
+		expect(t.object()).toStrictEqual({
 			type: 'object',
 			properties: undefined,
 		});
@@ -505,7 +495,7 @@ describe('Object', () => {
 			description: 'hello',
 		});
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'object',
 			properties: undefined,
 			description: 'hello',
@@ -517,7 +507,7 @@ describe('Object', () => {
 		it('should NOT be added for object w/o properties', () => {
 			let output = t.object();
 
-			assertEquals(output, {
+			expect(output).toStrictEqual({
 				type: 'object',
 				properties: undefined,
 			});
@@ -528,7 +518,7 @@ describe('Object', () => {
 				name: t.string(),
 			});
 
-			assertEquals(output, {
+			expect(output).toStrictEqual({
 				type: 'object',
 				additionalProperties: false, // <<
 				required: ['name'],
@@ -541,13 +531,16 @@ describe('Object', () => {
 		});
 
 		it('should allow override via options', () => {
-			let output = t.object({
-				name: t.string(),
-			}, {
-				additionalProperties: true,
-			});
+			let output = t.object(
+				{
+					name: t.string(),
+				},
+				{
+					additionalProperties: true,
+				},
+			);
 
-			assertEquals(output, {
+			expect(output).toStrictEqual({
 				type: 'object',
 				additionalProperties: true, // <<
 				required: ['name'],
@@ -561,22 +554,27 @@ describe('Object', () => {
 	});
 
 	it('should build "properties" property', () => {
-		let output = t.object({
-			name: t.string(),
-			age: t.integer(),
-		}, {
-			description: 'person',
-			examples: [{
-				name: 'lukeed',
-				age: 123,
-			}],
-			default: {
-				name: 'user',
-				age: 18,
+		let output = t.object(
+			{
+				name: t.string(),
+				age: t.integer(),
 			},
-		});
+			{
+				description: 'person',
+				examples: [
+					{
+						name: 'lukeed',
+						age: 123,
+					},
+				],
+				default: {
+					name: 'user',
+					age: 18,
+				},
+			},
+		);
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'object',
 			properties: {
 				name: { type: 'string' },
@@ -585,10 +583,12 @@ describe('Object', () => {
 			additionalProperties: false,
 			required: ['name', 'age'],
 			description: 'person',
-			examples: [{
-				name: 'lukeed',
-				age: 123,
-			}],
+			examples: [
+				{
+					name: 'lukeed',
+					age: 123,
+				},
+			],
 			default: {
 				name: 'user',
 				age: 18,
@@ -597,14 +597,17 @@ describe('Object', () => {
 	});
 
 	it('should respect "required" if provided', () => {
-		let output = t.object({
-			name: t.string(),
-			age: t.integer(),
-		}, {
-			required: ['name'],
-		});
+		let output = t.object(
+			{
+				name: t.string(),
+				age: t.integer(),
+			},
+			{
+				required: ['name'],
+			},
+		);
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -615,6 +618,16 @@ describe('Object', () => {
 		});
 	});
 
+	it('should clear Optional markers with custom "required"', () => {
+		let age = t.optional(t.integer());
+		let output = t.object({ name: t.string(), age }, { required: ['age'] });
+
+		expect(output.required).toStrictEqual(['age']);
+		expect(Object.getOwnPropertySymbols(age).map((k) => Reflect.get(age, k))).toStrictEqual([
+			undefined,
+		]);
+	});
+
 	it('should build "required" from non-Optionals', () => {
 		let output = t.object({
 			name: t.string(),
@@ -623,11 +636,9 @@ describe('Object', () => {
 
 		// NOTE: age has OPTIONAL symbol
 		// This is dropped natively in JSON
-		let copy = JSON.parse(
-			JSON.stringify(output),
-		);
+		let copy = JSON.parse(JSON.stringify(output));
 
-		assertEquals(copy, {
+		expect(copy).toStrictEqual({
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -643,16 +654,14 @@ describe('Object', () => {
 
 describe('Readonly', () => {
 	it('should be a function', () => {
-		assert(typeof t.readonly === 'function');
+		expect(typeof t.readonly === 'function').toBe(true);
 	});
 
 	// https://json-schema.org/understanding-json-schema/reference/object
 	it('should be JSON schema', () => {
-		let output = t.readonly(
-			t.string(),
-		);
+		let output = t.readonly(t.string());
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			type: 'string',
 			readOnly: true,
 		});
@@ -661,7 +670,7 @@ describe('Readonly', () => {
 
 describe('Partial', () => {
 	it('should be a function', () => {
-		assert(typeof t.partial === 'function');
+		expect(typeof t.partial === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
@@ -671,7 +680,7 @@ describe('Partial', () => {
 			}),
 		);
 
-		assertEquals(output, {
+		expect<unknown>(output).toStrictEqual({
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -687,7 +696,7 @@ describe('Partial', () => {
 			name: t.string(),
 		});
 
-		assertEquals(original, {
+		expect(original).toStrictEqual({
 			type: 'object',
 			required: ['name'],
 			additionalProperties: false,
@@ -700,7 +709,7 @@ describe('Partial', () => {
 
 		let _ = t.partial(original);
 
-		assertEquals(original, {
+		expect(original).toStrictEqual({
 			type: 'object',
 			required: ['name'],
 			additionalProperties: false,
@@ -717,15 +726,13 @@ describe('Partial', () => {
 
 describe('t.not', () => {
 	it('should be a function', () => {
-		assert(typeof t.not === 'function');
+		expect(typeof t.not === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
-		let output = t.not(
-			t.string(),
-		);
+		let output = t.not(t.string());
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			not: {
 				type: 'string',
 			},
@@ -735,16 +742,13 @@ describe('t.not', () => {
 
 describe('t.one', () => {
 	it('should be a function', () => {
-		assert(typeof t.one === 'function');
+		expect(typeof t.one === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
-		let output = t.one(
-			t.number({ multipleOf: 5 }),
-			t.number({ multipleOf: 3 }),
-		);
+		let output = t.one(t.number({ multipleOf: 5 }), t.number({ multipleOf: 3 }));
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			oneOf: [
 				{
 					type: 'number',
@@ -761,16 +765,13 @@ describe('t.one', () => {
 
 describe('t.any', () => {
 	it('should be a function', () => {
-		assert(typeof t.any === 'function');
+		expect(typeof t.any === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
-		let output = t.any(
-			t.string({ maxLength: 5 }),
-			t.number({ minimum: 0 }),
-		);
+		let output = t.any(t.string({ maxLength: 5 }), t.number({ minimum: 0 }));
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			anyOf: [
 				{
 					type: 'string',
@@ -786,17 +787,23 @@ describe('t.any', () => {
 });
 
 describe('t.all', () => {
+	it('should accept mixed types', () => {
+		let output = t.all(
+			t.object({ a: t.string() }, { additionalProperties: true }),
+			t.object({ b: t.number() }, { additionalProperties: true }),
+		);
+
+		expect(output.allOf.length).toStrictEqual(2);
+	});
+
 	it('should be a function', () => {
-		assert(typeof t.all === 'function');
+		expect(typeof t.all === 'function').toBe(true);
 	});
 
 	it('should be JSON schema', () => {
-		let output = t.all(
-			t.number({ maximum: 5 }),
-			t.number({ minimum: 0 }),
-		);
+		let output = t.all(t.number({ maximum: 5 }), t.number({ minimum: 0 }));
 
-		assertEquals(output, {
+		expect(output).toStrictEqual({
 			allOf: [
 				{
 					type: 'number',
@@ -807,6 +814,35 @@ describe('t.all', () => {
 					minimum: 0,
 				},
 			],
+		});
+	});
+});
+
+describe('t.recursive', () => {
+	it('should be a function', () => {
+		expect(typeof t.recursive === 'function').toBe(true);
+	});
+
+	it('should be JSON schema', () => {
+		let output = t.recursive('Tree', (self) =>
+			t.object({
+				value: t.string(),
+				children: t.array(self),
+			}),
+		);
+
+		expect(output).toStrictEqual({
+			$id: 'Tree',
+			type: 'object',
+			additionalProperties: false,
+			required: ['value', 'children'],
+			properties: {
+				value: { type: 'string' },
+				children: {
+					type: 'array',
+					items: { $ref: 'Tree' },
+				},
+			},
 		});
 	});
 });

@@ -1,14 +1,126 @@
 /**
  * @module
  */
-type Prettify<T> =
-	& {
-		[K in keyof T]: Prettify<T[K]>;
-	}
-	// deno-lint-ignore ban-types
-	& {};
+type Prettify<T> = {
+	[K in keyof T]: T[K];
+} &
+	// oxlint-disable-next-line typescript/no-empty-object-type
+	{};
 
-// deno-fmt-ignore
+/**
+ * @internal
+ * Pairs of {@link recursive} identifiers and their inferred types.
+ */
+type Scope = [string, unknown][];
+
+// prettier-ignore
+/**
+ * @internal
+ * Find the inferred type of a {@link recursive} identifier.
+ */
+type Lookup<S extends Scope, I> =
+	S extends [[infer K, infer V], ...infer R extends Scope]
+		? K extends I ? V : Lookup<R, I>
+		: unknown;
+
+// prettier-ignore
+/**
+ * @internal
+ * Infer the members of an `allOf` composition as an intersection.
+ */
+type Intersect<T, S extends Scope> =
+	(T extends unknown ? (x: [Resolve<T, S>]) => void : never) extends (x: [infer I]) => void
+		? I
+		: never;
+
+// prettier-ignore
+/**
+ * @internal
+ * Infer the {@link object} type of the `properties` definitions.
+ */
+type Props<P, S extends Scope> = string extends keyof P ? Record<string, unknown> : Prettify<
+	& { [K in keyof P as P[K] extends Required<P>[K] ? P[K] extends _optional<infer _> ? never : K : never]: Resolve<P[K], S> }
+	& { [K in keyof P as P[K] extends Required<P>[K] ? P[K] extends _optional<infer _> ? K : never : K]?: Resolve<Exclude<P[K], undefined>, S> }
+>;
+
+// prettier-ignore
+/**
+ * @internal
+ * Infer the {@link object} type of the `properties` definitions, using an explicit `required` list.
+ */
+type Fields<P, R, S extends Scope> = string extends keyof P ? Record<string, unknown> : Prettify<
+	& { [K in keyof P as K extends R ? K : never]: Resolve<P[K], S> }
+	& { [K in keyof P as K extends R ? never : K]?: Resolve<Exclude<P[K], undefined>, S> }
+>;
+
+/**
+ * @internal
+ * The inferred {@link object} type, with or without an explicit `required` list.
+ */
+type Shape<P, R> = R extends readonly unknown[] ? Fields<P, R[number], []> : Props<P, []>;
+
+// prettier-ignore
+/**
+ * @internal
+ * Infer the {@link tuple} type of the `prefixItems` definitions.
+ */
+type Items<P extends readonly unknown[], S extends Scope> = {
+	-readonly [K in keyof P]: Resolve<P[K], S>;
+};
+
+// prettier-ignore
+/**
+ * @internal
+ * Infer a {@link recursive} definition, exposing its own identifier.
+ */
+type Recurse<T, I extends string, S extends Scope> = Base<T, [[I, Recurse<T, I, S>], ...S]>;
+
+// prettier-ignore
+/**
+ * @internal
+ */
+type Resolve<T, S extends Scope> =
+	T extends { readOnly: true } ? Readonly<Unwrap<T, S>>
+	: Unwrap<T, S>;
+
+// prettier-ignore
+/**
+ * @internal
+ */
+type Unwrap<T, S extends Scope> =
+	T extends { $id: infer I extends string } ? Recurse<T, I, S>
+	: Base<T, S>;
+
+// prettier-ignore
+/**
+ * @internal
+ */
+type Base<T, S extends Scope> =
+	T extends _self<infer I> ? Lookup<S, I>
+	: T extends { const: infer V } ? V
+	: T extends { enum: readonly (infer E)[] } ? E
+	: T extends { anyOf: readonly (infer A)[] } ? Resolve<A, S>
+	: T extends { oneOf: readonly (infer A)[] } ? Resolve<A, S>
+	: T extends { allOf: readonly (infer A)[] } ? Intersect<A, S>
+	: T extends { not: unknown } ? unknown
+	: T extends { type: 'null' } ? null
+	: T extends { type: 'boolean' } ? boolean
+	: T extends { type: 'string'; enum?: readonly (infer E extends string)[] } ? E
+	: T extends { type: 'number' | 'integer'; enum?: readonly (infer E extends number)[] } ? E
+	: T extends { type: 'array'; prefixItems?: infer P extends readonly unknown[] }
+		? number extends P['length']
+			? T extends { items?: infer I } ? unknown extends I ? unknown[] : Resolve<I, S>[] : unknown[]
+			: Items<P, S>
+	: T extends { type: 'array' } ? unknown[]
+	: T extends { type: 'object'; properties?: infer P }
+		? 'properties' extends keyof T
+			? T extends { required: readonly (infer R)[] } ? Fields<P, R, S> : Props<P, S>
+		: T extends { additionalProperties: infer A extends Type } ? Record<string, Resolve<A, S>>
+		: Record<string, unknown>
+	: T extends readonly Type[] ? Items<T, S>
+	: T extends Properties ? Props<T, S>
+	: unknown;
+
 /**
  * Infer the TypeScript type(s) information from a {@link Type} definition.
  *
@@ -27,33 +139,7 @@ type Prettify<T> =
  * //-> }
  * ```
  */
-export type Infer<T> =
-	T extends _null ? null
-	: T extends _boolean ? boolean
-	: T extends _string<infer E> ? E
-	: T extends _number<infer E> | _integer<infer E> ? E
-	: T extends _readonly<infer X> ? Readonly<Infer<X>>
-	: T extends _constant<infer V> ? V
-	: T extends _enum<infer E> ? E
-	: T extends _tuple<infer I>  ? Infer<I>
-	: T extends _array<infer I> ? Infer<I>[]
-	: T extends _dict<infer I> ? Record<string, Infer<I>>
-	// compositions
-	: T extends _not<infer _> ? unknown
-	: T extends _any<infer A> | _one<infer A> ? Infer<A>
-	: T extends _all<infer A> ? Infer<A>
-	// read out values
-	: T extends [infer A, ...infer B]
-		? [Infer<A>, ...Infer<B>]
-	: T extends Record<string, Type>
-		? { [K in keyof T]: Infer<T[K]> }
-	: T extends _object<infer P> ?
-		Prettify<
-			& { [K in keyof P as P[K] extends _optional<infer _> ? K : never]?: Infer<P[K]> }
-			& { [K in keyof P as P[K] extends _optional<infer _> ? never : K]: Infer<P[K]> }
-		>
-	: T extends _unknown ? unknown
-	: T;
+export type Infer<T> = Resolve<T, []>;
 
 /**
  * Common annotation keywords assignable to any field schema.
@@ -96,7 +182,8 @@ export type Type =
 	| _all<unknown>
 	| _any<unknown>
 	| _one<unknown>
-	| _not<unknown>;
+	| _not<unknown>
+	| _self<string>;
 
 const OPTIONAL: unique symbol = Symbol.for('optional');
 
@@ -189,10 +276,12 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
  * //-> }
  * ```
  */
-// @ts-expect-error; object needs distinct/definitive type else array overlap
-function _partial<P extends Properties>(input: _object<P>): _object<Partial<P>> {
-	// deno-lint-ignore no-unused-vars
+function _partial<P extends Properties>(
+	input: _object<P>,
+): _object<{ [K in keyof P]: _optional<P[K]> }> {
+	// oxlint-disable-next-line no-unused-vars
 	let { required, ...schema } = input;
+	// @ts-expect-error; generic `default` types are not comparable
 	return schema;
 }
 
@@ -255,9 +344,7 @@ type _constant<V extends Value> = Annotations & {
  * });
  * ```
  */
-function _constant<
-	const V extends Value,
->(
+function _constant<const V extends Value>(
 	value: V,
 	options?: Omit<_constant<V>, 'const'>,
 ): _constant<V> {
@@ -291,12 +378,7 @@ type _enum<V extends Value> = Annotations & {
  * });
  * ```
  */
-function _enum<
-	const V extends Value,
->(
-	choices: V[],
-	options?: Omit<_enum<V>, 'enum'>,
-): _enum<V> {
+function _enum<const V extends Value>(choices: V[], options?: Omit<_enum<V>, 'enum'>): _enum<V> {
 	return {
 		enum: choices,
 		...options,
@@ -372,18 +454,13 @@ type _string<E extends string = string> = Annotations & {
  * //-> "foo" | "bar"
  * ```
  */
-function _string<
-	const V extends string,
-	F extends _string<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _string<const V extends string, F extends _string<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _string<
-	F extends _string,
->(options?: Omit<F, 'type'>): F;
+function _string<F extends _string>(options?: Omit<F, 'type'>): F;
 
-function _string(
-	options?: Omit<_string, 'type'>,
-): _string {
+function _string(options?: Omit<_string, 'type'>): _string {
 	return { ...options, type: 'string' };
 }
 
@@ -422,18 +499,13 @@ type _number<E extends number = number> = Annotations & {
  * //-> 0 | 1 | 12.8 | 101.3
  * ```
  */
-function _number<
-	const V extends number,
-	F extends _number<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _number<const V extends number, F extends _number<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _number<
-	F extends _number,
->(options?: Omit<F, 'type'>): F;
+function _number<F extends _number>(options?: Omit<F, 'type'>): F;
 
-function _number(
-	options?: Omit<_number, 'type'>,
-): _number {
+function _number(options?: Omit<_number, 'type'>): _number {
 	return { ...options, type: 'number' };
 }
 
@@ -465,18 +537,13 @@ type _integer<E extends number = number> = Omit<_number<E>, 'type'> & {
  * //-> 0 | 1 | 2 | 3
  * ```
  */
-function _integer<
-	const V extends number,
-	F extends _integer<V>,
->(options?: Omit<F, 'type'> & { enum: V[] }): F;
+function _integer<const V extends number, F extends _integer<V>>(
+	options?: Omit<F, 'type'> & { enum: V[] },
+): F;
 
-function _integer<
-	F extends _integer,
->(options?: Omit<F, 'type'>): F;
+function _integer<F extends _integer>(options?: Omit<F, 'type'>): F;
 
-function _integer(
-	options?: Omit<_integer, 'type'>,
-): _integer {
+function _integer(options?: Omit<_integer, 'type'>): _integer {
 	return { ...options, type: 'integer' };
 }
 
@@ -512,10 +579,7 @@ type _array<T> = Annotations & {
  * //-> string[]
  * ```
  */
-function _array<
-	const I extends Type,
-	F extends _array<I>,
->(
+function _array<const I extends Type, F extends _array<I>>(
 	items?: I,
 	options?: Omit<F, 'type' | 'items'>,
 ): F {
@@ -541,8 +605,8 @@ type _tuple<T> = Annotations & {
 	contains?: Type;
 	minContains?: number;
 	maxContains?: number;
-	default?: Infer<T>;
-	examples?: Array<Infer<T>>;
+	default?: Infer<{ type: 'array'; prefixItems: T }>;
+	examples?: Array<Infer<{ type: 'array'; prefixItems: T }>>;
 };
 
 /**
@@ -561,9 +625,7 @@ type _tuple<T> = Annotations & {
  * //-> [number, string]
  * ```
  */
-function _tuple<
-	const M extends Type[],
->(
+function _tuple<const M extends Type[]>(
 	members?: M,
 	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
 ): _tuple<M> {
@@ -582,13 +644,13 @@ function _tuple<
  */
 type _dict<T extends Type> = Annotations & {
 	type: 'object';
-	patternProperties?: Type;
+	patternProperties?: Record<string, Type>;
 	additionalProperties: T;
 	propertyNames?: Partial<_string>;
 	minProperties?: number;
 	maxProperties?: number;
-	default?: Infer<T>;
-	examples?: Array<Infer<T>>;
+	default?: Record<string, Infer<T>>;
+	examples?: Array<Record<string, Infer<T>>>;
 };
 
 /**
@@ -604,10 +666,7 @@ type _dict<T extends Type> = Annotations & {
  * //-> Record<string, number>
  * ```
  */
-function _dict<
-	const I extends Type,
-	F extends _dict<I>,
->(
+function _dict<const I extends Type, F extends _dict<I>>(
 	value: I,
 	options?: Omit<F, 'type' | 'additionalProperties'>,
 ): F {
@@ -638,14 +697,14 @@ type Properties = {
 type _object<T extends Properties = Properties> = Annotations & {
 	type: 'object';
 	properties?: T;
-	required?: (keyof T)[];
-	patternProperties?: Type;
+	required?: readonly (keyof T)[];
+	patternProperties?: Record<string, Type>;
 	additionalProperties?: Type | boolean;
 	propertyNames?: Partial<_string>;
 	minProperties?: number;
 	maxProperties?: number;
-	default?: Infer<T>;
-	examples?: Array<Infer<T>>;
+	default?: Props<T, []>;
+	examples?: Array<Props<T, []>>;
 };
 
 /**
@@ -731,10 +790,15 @@ type _object<T extends Properties = Properties> = Annotations & {
 function _object<
 	P extends Properties,
 	T extends _object<P>,
+	const R extends readonly (keyof P)[] | undefined = undefined,
 >(
 	properties?: P,
-	options?: Omit<T, 'type' | 'properties'>,
-): T {
+	options?: Omit<T, 'type' | 'properties' | 'required' | 'default' | 'examples'> & {
+		required?: R;
+		default?: Shape<P, R>;
+		examples?: Shape<P, R>[];
+	},
+): R extends readonly unknown[] ? Omit<T, 'required'> & { required: R } : T {
 	let o = {
 		...options,
 		type: 'object',
@@ -744,24 +808,23 @@ function _object<
 	if (properties) {
 		o.additionalProperties ||= false;
 
-		if (!o.required) {
-			let k: keyof P;
-			let arr: (keyof P)[] = [];
-			for (k in properties) {
-				if (properties[k][OPTIONAL]) {
-					// NOTE: delete = deopt
-					properties[k][OPTIONAL] = undefined;
-				} else {
-					arr.push(k);
-				}
+		let k: keyof P;
+		let arr: (keyof P)[] = [];
+		for (k in properties) {
+			if (properties[k][OPTIONAL]) {
+				// NOTE: delete = deopt
+				properties[k][OPTIONAL] = undefined;
+			} else {
+				arr.push(k);
 			}
-			if (arr.length > 0) {
-				o.required = arr;
-			}
+		}
+
+		if (!o.required && arr.length > 0) {
+			o.required = arr;
 		}
 	}
 
-	return o;
+	return o as R extends readonly unknown[] ? Omit<T, 'required'> & { required: R } : T;
 }
 
 // compositions
@@ -854,12 +917,69 @@ type _all<T> = {
  * Defines an `allOf` composition (AND).
  *
  * Declares that a field must be valid against **all** of the subschemas.
+ *
+ * ```ts
+ * let _ = t.all(
+ *   t.object({ name: t.string() }, { additionalProperties: true }),
+ *   t.object({ age: t.integer() }, { additionalProperties: true }),
+ * );
+ * //-> { name: string } & { age: number }
+ * ```
  */
-function _all<T extends Type>(...allOf: T[]): _all<T> {
+function _all<T extends Type[]>(...allOf: T): _all<T[number]> {
 	return { allOf };
 }
 
-// deno-fmt-ignore
+/**
+ * A reference to the enclosing {@link recursive} definition.
+ */
+type _self<I extends string> = {
+	$ref: I;
+};
+
+/**
+ * A self-referencing definition.
+ *
+ * [Reference](https://json-schema.org/understanding-json-schema/structuring#recursion)
+ */
+type _recursive<I extends string, T extends Type> = T & {
+	$id: I;
+};
+
+/**
+ * Defines a recursive schema.
+ *
+ * The `id` becomes the schema's `$id` value and the `self` argument is a `$ref` back to it.
+ *
+ * > [!NOTE]
+ * > The `id` must be unique within the outermost schema.
+ *
+ * ```ts
+ * let tree = t.recursive('Tree', (self) =>
+ *   t.object({
+ *     value: t.string(),
+ *     children: t.array(self),
+ *   })
+ * );
+ *
+ * type Tree = t.Infer<typeof tree>;
+ * //-> {
+ * //->   value: string;
+ * //->   children: Tree[];
+ * //-> }
+ * ```
+ */
+function _recursive<const I extends string, T extends Type>(
+	id: I,
+	define: (self: _self<I>) => T,
+): _recursive<I, T> {
+	return {
+		...define({ $ref: id }),
+		$id: id,
+	};
+}
+
+// prettier-ignore
 export {
 	// composites
 	_all as all,
@@ -870,6 +990,7 @@ export {
 	_optional as optional,
 	_readonly as readonly,
 	_partial as partial,
+	_recursive as recursive,
 	// literals
 	_null as null,
 	_constant as constant,
@@ -884,4 +1005,4 @@ export {
 	_tuple as tuple,
 	_unknown as unknown,
 	_dict as dict,
-}
+};

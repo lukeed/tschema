@@ -1,43 +1,32 @@
-// deno task release <version>
+// bun run release <version>
 
-import { assert } from 'jsr:@std/assert@^1.0';
-import { resolve } from 'jsr:@std/path@^1.0';
+import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-const version = Deno.args[0];
-assert(version, 'Missing <version> value!');
+const version = process.argv[2];
+if (!version) throw new Error('Missing <version> value!');
 
-let input = resolve('deno.json');
-let content = await Deno.readTextFile(input);
+let input = resolve('package.json');
+let content = await readFile(input, 'utf8');
 
 let config = JSON.parse(content);
 config.version = version;
 
-async function run(label: string, options: Deno.CommandOptions) {
-	let bin = (options.args || []).shift();
-	let c = bin && await new Deno.Command(bin, options).output();
-	if (c) assert(c.code === 0, label);
+async function run(label: string, args: string[]) {
+	let c = Bun.spawn(args, { stdout: 'inherit', stderr: 'inherit' });
+	if ((await c.exited) !== 0) throw new Error(`Failed: ${label}`);
 }
 
-content = JSON.stringify(config, null, 2);
-await Deno.writeTextFile(input, content);
+content = JSON.stringify(config, null, '\t') + '\n';
+await writeFile(input, content);
 
 // prevent CI error
-await run('deno fmt', {
-	args: ['deno', 'fmt', input],
-});
+await run('oxfmt', ['bunx', 'oxfmt', input]);
 
-await run('git add', {
-	args: ['git', 'add', input],
-});
+await run('git add', ['git', 'add', input]);
 
-await run('git commit', {
-	args: ['git', 'commit', '-m', `v${version}`],
-});
+await run('git commit', ['git', 'commit', '-m', `v${version}`]);
 
-await run('git tag', {
-	args: ['git', 'tag', `v${version}`],
-});
+await run('git tag', ['git', 'tag', `v${version}`]);
 
-await run('git push', {
-	args: ['git', 'push', 'origin', 'main', '--tags'],
-});
+await run('git push', ['git', 'push', 'origin', 'main', '--tags']);

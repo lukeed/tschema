@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"lib": ["esnext"],
+		"types": ["bun"],
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"verbatimModuleSyntax": true,
+		"paths": {
+			"tschema": ["./mod.ts"],
+			"tschema/validate": ["./validate.ts"]
+		}
+	},
+	"include": ["*.ts", "scripts", "bench"],
+	"exclude": ["npm", "jsr", "suite", "node_modules", "bench/dist"]
+}

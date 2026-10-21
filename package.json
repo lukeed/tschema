@@ -1,0 +1,33 @@
+{
+	"name": "tschema-dev",
+	"version": "3.2.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "bun scripts/build.ts",
+		"release": "bun scripts/release.ts",
+		"bench": "bun run build && bun bench/build.ts && bun run bench:bun && bun run bench:node",
+		"test": "bun test",
+		"types": "bun run build && bun bench/build.ts && tsc",
+		"lint": "oxlint",
+		"fmt": "oxfmt",
+		"fmt:check": "oxfmt --check",
+		"bench:bun": "bun bench/builder.ts && bun bench/validate.ts",
+		"bench:node": "node bench/builder.ts && node bench/validate.ts"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.4.3",
+		"ajv": "^8.17.1",
+		"ajv-formats": "^3.0.1",
+		"mitata": "^1.0.34",
+		"oxc-transform": "^0.155.0",
+		"oxfmt": "^0.74.0",
+		"oxlint": "^1.89.0",
+		"rolldown": "^1.2.14",
+		"typebox": "^1.4.2",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.4",
+		"zod": "^4.6.7",
+		"zod-to-json-schema": "^3.23.5"
+	}
+}
