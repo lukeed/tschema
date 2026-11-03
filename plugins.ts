@@ -118,6 +118,12 @@ function lexical(body: ESTree.Node[], out: Set<string>) {
 			node.id
 		) {
 			out.add(node.id.name);
+		} else if (node.type === 'TSEnumDeclaration' || node.type === 'TSImportEqualsDeclaration') {
+			out.add(node.id.name);
+		} else if (node.type === 'TSModuleDeclaration' && !node.global) {
+			let id: ESTree.TSModuleDeclaration['id'] | ESTree.TSTypeName = node.id;
+			while (id.type === 'TSQualifiedName') id = id.left;
+			if (id.type === 'Identifier') out.add(id.name);
 		}
 	}
 }
@@ -151,6 +157,13 @@ function scope(node: ESTree.Node): Set<string> | undefined {
 				lexical(node.body.body, out);
 				hoist(node.body, out);
 			}
+			return out;
+		case 'ClassExpression':
+			if (node.id) out.add(node.id.name);
+			return out;
+		case 'TSModuleBlock':
+			lexical(node.body, out);
+			hoist(node, out);
 			return out;
 		case 'BlockStatement':
 		case 'StaticBlock':

@@ -237,6 +237,113 @@ describe('rolldown (dynamic)', () => {
 	});
 });
 
+describe('rolldown (scopes)', () => {
+	let out: Output;
+
+	beforeAll(async () => {
+		out = await compile({
+			'main.ts': `
+				import * as t from 'tschema';
+				import { parse } from 'tschema/validate';
+
+				const S = t.string();
+
+				export const control = (x: unknown) => parse(S, x);
+				export const param = (x: unknown) => ((S: t.Type) => parse(S, x))(t.integer());
+				export const pattern = (x: unknown) => (({ a: [S] }: { a: t.Type[] }) => parse(S, x))({ a: [t.integer()] });
+				export const initial = (x: unknown) => ((S: t.Type = t.integer()) => parse(S, x))();
+				export const rest = (x: unknown) => ((...[S]: t.Type[]) => parse(S, x))(t.integer());
+				export const loop = (x: unknown) => {
+					for (let S = t.integer(); ; ) return parse(S, x);
+				};
+				export const keys = (x: unknown) => {
+					for (let S in { a: 1 }) return parse(S as never, x);
+				};
+				export const values = (x: unknown) => {
+					for (const S of [t.integer()]) return parse(S, x);
+				};
+				export const caught = (x: unknown) => {
+					try { throw t.integer(); } catch (S) { return parse(S as t.Type, x); }
+				};
+				export const caughtPattern = (x: unknown) => {
+					try { throw { S: t.integer() }; } catch ({ S }) { return parse(S as t.Type, x); }
+				};
+				export const cases = (x: unknown) => {
+					switch (typeof x) { default: let S = t.integer(); return parse(S, x); }
+				};
+				export const block = (x: unknown) => {
+					{ let S = t.integer(); return parse(S, x); }
+				};
+				export const hoisted = (x: unknown) => {
+					if (x !== S) { var S = t.integer(); }
+					return parse(S, x);
+				};
+				export const statics = (x: unknown) => {
+					class C { static run: (y: unknown) => unknown; static { let S = t.integer(); C.run = (y) => parse(S, y); } }
+					return C.run(x);
+				};
+				export const property = (x: unknown) => {
+					class C { out: unknown; constructor(private S: t.Type) { this.out = parse(S, x); } }
+					return new C(t.integer()).out;
+				};
+				export const named = (x: unknown) => (function S() { return parse(S as never, x); })();
+				export const klass = (x: unknown) => (class S { static run = () => parse(S as never, x); }).run();
+				export const enumerated = (x: unknown) => {
+					enum S { type = 'integer' }
+					return parse(S as never, x);
+				};
+				export namespace N {
+					const S = t.integer();
+					export const run = (x: unknown) => parse(S, x);
+				}
+				export namespace M {
+					namespace S { export const type = 'integer'; }
+					export const run = (x: unknown) => parse(S as never, x);
+				}
+			`,
+		});
+	});
+
+	it('should compile the unshadowed call', () => {
+		expect(out.code).toMatch(/tschema:S-/);
+		expect(out.mod.control('x')).toStrictEqual('x');
+		expect(out.mod.control(1)).toStrictEqual(undefined);
+	});
+
+	it('should validate shadowed schemas at runtime', () => {
+		let names = [
+			'param',
+			'pattern',
+			'initial',
+			'rest',
+			'loop',
+			'values',
+			'caught',
+			'caughtPattern',
+			'cases',
+			'block',
+			'hoisted',
+			'statics',
+			'property',
+			'enumerated',
+		];
+		for (let name of names) {
+			expect([name, out.mod[name](1)]).toStrictEqual([name, 1]);
+		}
+		let ns = out.mod as unknown as Record<string, Record<string, (x: unknown) => unknown>>;
+		expect(ns.N.run(1)).toStrictEqual(1);
+		expect(ns.N.run('x')).toStrictEqual(undefined);
+		expect(ns.M.run(1)).toStrictEqual(1);
+		expect(ns.M.run('x')).toStrictEqual(undefined);
+	});
+
+	it('should not compile shadowing non-schemas', () => {
+		expect(() => out.mod.keys(1)).toThrow('Invalid schema');
+		expect(() => out.mod.named(1)).toThrow('Invalid schema');
+		expect(() => out.mod.klass(1)).toThrow('Invalid schema');
+	});
+});
+
 describe('rolldown (suite)', () => {
 	let out: Output;
 	let groups: suite.Group[];
