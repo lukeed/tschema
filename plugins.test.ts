@@ -571,7 +571,222 @@ describe('rolldown (mutations)', () => {
 		},
 	};
 
+	COMPILED['infinite limits'] = {
+		input: 5,
+		main: `
+			export const other = (x: unknown) => parse(t.number({ minimum: 1e999 }), x);
+			export const check = (x: unknown) => parse(t.number({ minimum: -1e999 }), x);
+		`,
+	};
+
 	const RUNTIME: Record<string, Case> = {
+		'getter in a registry': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, get x() { this.s.required!.push('email'); return 1; } };
+				export const n = R.x;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'valueOf in a registry': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, valueOf() { this.s.required!.push('email'); return 1; } };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'iterator in a registry': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, *[Symbol.iterator]() { this.s.required!.push('email'); } };
+				export const all = [...R];
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'function value in a registry': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, valueOf: function () { this.s.required!.push('email'); return 1; } };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'getter in builder options': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const S = t.string({ s: User, get minLength() { (this as any).s.required.push('email'); return 1; } } as any);
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'parse returns the input': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				(parse(t.unknown(), User) as any).required.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'validate returns the input': {
+			input: { name: 'a' },
+			main: `
+				import { validate } from 'tschema/validate';
+				import { User } from './schemas';
+				(validate(t.unknown(), User) as any).value.required.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'borrowed validate method': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				// @ts-ignore
+				parse.call.call(Array.prototype.push, User.required, 'email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'export * as': {
+			input: { name: 'a' },
+			files: { 'index.ts': `export * as api from './schemas';` },
+			main: `
+				import { api } from './index';
+				import { User } from './schemas';
+				api.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'import require': {
+			input: { name: 'a' },
+			main: `
+				import S = require('./schemas');
+				import { User } from './schemas';
+				S.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'require call': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				declare const require: any;
+				require('./schemas').User.required.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'dynamic import': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const m = await import('./schemas');
+				m.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'direct eval': {
+			input: { name: 'a' },
+			main: `
+				const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+				eval("User.required.push('email')");
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'param default before body var': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const f = (s = User) => { var User; s.required!.push('email'); };
+				f();
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'param default before body let': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				function f(s = User.required!.push('email')) { let User = 1; return User + s; }
+				f();
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'var in a static block': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const f = () => { class C { static { var User; } } User.required!.push('email'); };
+				f();
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'var in a nested namespace': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				namespace A { namespace B { var User = 1; } User.required!.push('email'); }
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'type-only namespace': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				namespace N { namespace User { export type T = 1; } User.required!.push('email'); }
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'switch discriminant': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				switch (User.required!.push('email')) { default: let User = 1; }
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'second-level module': {
+			input: { author: { name: 'a' }, extra: 'x' },
+			files: {
+				'b.ts': `
+					import * as t from 'tschema';
+					import { User } from './schemas';
+					User.required!.push('email');
+					export const Extra = t.string();
+				`,
+			},
+			main: `
+				import { User } from './schemas';
+				import { Extra } from './b';
+				const Post = t.object({ author: User, extra: Extra });
+				export const check = (x: unknown) => parse(Post, x);
+			`,
+		},
+		'declare const': {
+			input: 'ab',
+			main: `
+				(globalThis as any).MIN = 5;
+				declare const MIN = 1;
+				export const check = (x: unknown) => parse(t.string({ minLength: MIN }), x);
+			`,
+		},
+		'invalid pattern': {
+			input: 'x',
+			main: `
+				export const check = (x: unknown) => {
+					try { return parse(t.string({ pattern: '(' }), x); } catch { return 'error'; }
+				};
+			`,
+		},
+		'unresolved ref': {
+			input: { a: 1 },
+			main: `
+				export const check = (x: unknown) => {
+					try { return parse(t.object({ a: { $ref: '#/nope' } as never }), x); } catch { return 'error'; }
+				};
+			`,
+		},
 		'required.push': {
 			input: { name: 'a' },
 			main: `
@@ -738,6 +953,39 @@ describe('rolldown (mutations)', () => {
 			expect(out.aot).toStrictEqual(out.runtime);
 		});
 	}
+
+	it('should finish on export cycles', async () => {
+		let out = await check({
+			input: 'x',
+			files: {
+				'a.ts': `export * from './b';\nexport * from './c';`,
+				'b.ts': `export * from './a';`,
+				'c.ts': `import * as t from 'tschema';\nexport const X = t.string();`,
+			},
+			main: `
+				import { X } from './a';
+				export const check = (x: unknown) => parse(X, x);
+			`,
+		});
+		expect(out.compiled).toBe(true);
+		expect(out.aot).toStrictEqual(out.runtime);
+	}, 10_000);
+
+	it('should finish on self references', async () => {
+		let files = {
+			'schemas.ts': SHARED,
+			'a.ts': `import * as t from 'tschema';\nimport { B } from './b';\nexport const A = t.object({ b: B });`,
+			'b.ts': `import * as t from 'tschema';\nimport { A } from './a';\nexport const B = t.object({ a: A });`,
+			'main.ts': `${HEAD}
+				import { A } from './a';
+				const Self: t.Type = t.object({ self: Self });
+				export const self = (x: unknown) => parse(Self, x);
+				export const check = (x: unknown) => parse(A, x);
+			`,
+		};
+		await expect(compile(files, 'main.ts', false)).rejects.toThrow(ReferenceError);
+		await expect(compile(files)).rejects.toThrow(ReferenceError);
+	}, 10_000);
 
 	it('should not see changes in other modules', async () => {
 		let out = await check({
