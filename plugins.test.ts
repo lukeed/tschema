@@ -836,7 +836,8 @@ describe('rolldown (mutations)', () => {
 				import { User } from './schemas';
 				const P = { get name() { (this as any).s.required.push('email'); return 'x'; } };
 				const R = { __proto__: P, s: User };
-				parse(t.object({ name: t.string() }), R);
+				let Named = t.object({ name: t.string() });
+				parse(Named, R);
 				export const check = (x: unknown) => parse(User, x);
 			`,
 		},
