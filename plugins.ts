@@ -146,7 +146,7 @@ function lexical(body: ESTree.Node[], out: Set<string>) {
 			out.add(node.id.name);
 		} else if (node.type === 'TSEnumDeclaration' || node.type === 'TSImportEqualsDeclaration') {
 			out.add(node.id.name);
-		} else if (node.type === 'TSModuleDeclaration' && !node.global) {
+		} else if (node.type === 'TSModuleDeclaration' && instantiated(node)) {
 			let id: ESTree.TSModuleDeclaration['id'] | ESTree.TSTypeName = node.id;
 			while (id.type === 'TSQualifiedName') id = id.left;
 			if (id.type === 'Identifier') out.add(id.name);
@@ -154,12 +154,31 @@ function lexical(body: ESTree.Node[], out: Set<string>) {
 	}
 }
 
+/**
+ * @internal
+ * Whether a TS namespace declares a runtime value, since type-only namespaces are erased.
+ */
+function instantiated(node: ESTree.TSModuleDeclaration | ESTree.TSGlobalDeclaration): boolean {
+	if (node.global || node.declare || !node.body) return false;
+	return node.body.body.some((stmt) => {
+		let d = stmt.type === 'ExportNamedDeclaration' && stmt.declaration ? stmt.declaration : stmt;
+		if (d.type === 'TSModuleDeclaration') return instantiated(d);
+		return (
+			d.type !== 'TSInterfaceDeclaration' &&
+			d.type !== 'TSTypeAliasDeclaration' &&
+			!(d.type === 'ExportNamedDeclaration' && d.exportKind === 'type') &&
+			!(d.type === 'ImportDeclaration' && d.importKind === 'type') &&
+			!('declare' in d && d.declare)
+		);
+	});
+}
+
 function hoist(node: unknown, out: Set<string>) {
 	if (!isNode(node)) return;
 	if (node.type === 'VariableDeclaration' && node.kind === 'var') {
 		for (let d of node.declarations) declare(d.id, out);
 	}
-	if (/Function/.test(node.type)) return;
+	if (/Function|StaticBlock|TSModuleDeclaration/.test(node.type)) return;
 	for (let value of Object.values(node)) {
 		if (Array.isArray(value)) {
 			for (let v of value) hoist(v, out);
@@ -171,7 +190,7 @@ function hoist(node: unknown, out: Set<string>) {
  * @internal
  * The names declared by a scope-creating node, if any.
  */
-function scope(node: ESTree.Node): Set<string> | undefined {
+function scope(node: ESTree.Node, parent: ESTree.Node | undefined): Set<string> | undefined {
 	let out = new Set<string>();
 	switch (node.type) {
 		case 'FunctionDeclaration':
@@ -179,10 +198,6 @@ function scope(node: ESTree.Node): Set<string> | undefined {
 		case 'ArrowFunctionExpression':
 			if (node.type === 'FunctionExpression' && node.id) out.add(node.id.name);
 			for (let p of node.params) declare(p, out);
-			if (node.body && node.body.type === 'BlockStatement') {
-				lexical(node.body.body, out);
-				hoist(node.body, out);
-			}
 			return out;
 		case 'ClassExpression':
 			if (node.id) out.add(node.id.name);
@@ -192,8 +207,12 @@ function scope(node: ESTree.Node): Set<string> | undefined {
 			hoist(node, out);
 			return out;
 		case 'BlockStatement':
+			lexical(node.body, out);
+			if (parent && /Function/.test(parent.type)) hoist(node, out);
+			return out;
 		case 'StaticBlock':
 			lexical(node.body, out);
+			for (let stmt of node.body) hoist(stmt, out);
 			return out;
 		case 'ForStatement':
 			if (node.init && node.init.type === 'VariableDeclaration') lexical([node.init], out);
@@ -219,13 +238,14 @@ function walk(
 ) {
 	if (!isNode(node) || (node.type.startsWith('TS') && !VALUES.has(node.type))) return;
 	visit(node, stack, path);
-	let names = scope(node);
-	if (names && names.size) stack = [...stack, names];
+	let names = scope(node, path[path.length - 1]);
+	let inner = names && names.size ? [...stack, names] : stack;
 	path.push(node);
-	for (let value of Object.values(node)) {
+	for (let [key, value] of Object.entries(node)) {
+		let next = node.type === 'SwitchStatement' && key === 'discriminant' ? stack : inner;
 		if (Array.isArray(value)) {
-			for (let v of value) walk(v, stack, visit, path);
-		} else walk(value, stack, visit, path);
+			for (let v of value) walk(v, next, visit, path);
+		} else walk(value, next, visit, path);
 	}
 	path.pop();
 }
