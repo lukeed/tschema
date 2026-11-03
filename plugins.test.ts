@@ -628,7 +628,8 @@ describe('rolldown (mutations)', () => {
 			input: { name: 'a' },
 			main: `
 				import { User } from './schemas';
-				(parse(t.unknown(), User) as any).required.push('email');
+				let Any = t.unknown();
+				(parse(Any, User) as any).required.push('email');
 				export const check = (x: unknown) => parse(User, x);
 			`,
 		},
@@ -637,7 +638,8 @@ describe('rolldown (mutations)', () => {
 			main: `
 				import { validate } from 'tschema/validate';
 				import { User } from './schemas';
-				(validate(t.unknown(), User) as any).value.required.push('email');
+				let Any = t.unknown();
+				(validate(Any, User) as any).value.required.push('email');
 				export const check = (x: unknown) => parse(User, x);
 			`,
 		},
