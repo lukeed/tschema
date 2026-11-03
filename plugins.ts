@@ -1214,7 +1214,7 @@ function plugin() {
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
  *
  * A schema that may change after it is created also uses the runtime compiler. Only the calling
- * module and the modules that define its schemas are checked for changes.
+ * module and the modules it loads to find its schemas are checked for changes.
  *
  * > [!IMPORTANT]
  * > Requires Vite 8 or later.
@@ -1257,7 +1257,7 @@ export function vite(): VitePlugin {
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
  *
  * A schema that may change after it is created also uses the runtime compiler. Only the calling
- * module and the modules that define its schemas are checked for changes.
+ * module and the modules it loads to find its schemas are checked for changes.
  *
  * ```ts
  * // rolldown.config.ts

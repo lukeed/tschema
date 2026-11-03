@@ -206,7 +206,7 @@ let schema = await fetchSchema();
 validate(schema, input); // runtime
 ```
 
-The plugin also uses the runtime path when a schema might change. Reading a schema is fine. Anything else counts as a change: assigning to it (or into it), calling one of its methods, or passing it to a function that isn't from `tschema`. This includes changes made through another schema that holds it. A file that uses `eval`, or an `import()` or `require()` with a computed path, always uses the runtime path.
+The plugin also uses the runtime path when a schema might change. Reading a schema is fine. Anything else counts as a change: assigning to it (or into it), calling one of its methods, or passing it to a function that isn't from `tschema`. This includes changes made through another schema that holds it. A file that uses `eval`, `import.meta.glob`, or an `import()` or `require()` with a computed path, always uses the runtime path.
 
 ```ts
 import { validate } from 'tschema/validate';
@@ -227,7 +227,9 @@ validate(User, input); // runtime, because addRoute might change User
 > const Signup = t.object({ ...User.properties, password: t.string() });
 > ```
 >
-> The plugin only looks for changes in the file that calls `validate` and the files that define its schemas. It may miss a change made in any other file, and then the compiled validator won't match the runtime one.
+> The plugin only looks for changes in the file that calls `validate` and the files it loads to find its schemas. It may miss a change made in any other file, and then the compiled validator won't match the runtime one.
+>
+> Keep schemas, and any object that holds a schema, as plain data. A getter, `valueOf`, or `toJSON` that changes a schema can run without the plugin seeing it.
 
 ## API
 
