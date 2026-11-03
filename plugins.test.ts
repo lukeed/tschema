@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -781,6 +781,204 @@ describe('rolldown (mutations)', () => {
 				};
 			`,
 		},
+		'named function value': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				function vo(this: any) { this.s.required.push('email'); return 1; }
+				const R = { s: User, valueOf: vo };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'shorthand function value': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				function valueOf(this: any) { this.s.required.push('email'); return 1; }
+				const R = { s: User, valueOf };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'cast function value': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, valueOf: function (this: any) { this.s.required.push('email'); return 1; } as () => number };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'borrowed function value': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				class M { valueOf(this: any) { this.s.required.push('email'); return 1; } }
+				const R = { s: User, valueOf: M.prototype.valueOf };
+				export const n = (R as any) + 1;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'inherited getter': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const P = { get x() { (this as any).s.required.push('email'); return 1; } };
+				const R = { __proto__: P, s: User };
+				export const n = (R as any).x;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'inherited getter run by validation': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const P = { get name() { (this as any).s.required.push('email'); return 'x'; } };
+				const R = { __proto__: P, s: User };
+				parse(t.object({ name: t.string() }), R);
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'instanceof hook': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				class Hook { static [Symbol.hasInstance](v: any) { v.required.push('email'); return true; } }
+				export const b = User instanceof Hook;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'enum initializer': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				// @ts-ignore
+				enum E { A = User }
+				(E.A as any).required.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'erased declare const': {
+			input: { name: 'a' },
+			main: `
+				const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+				namespace N { declare const User: any; User.required.push('email'); }
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'erased declare class': {
+			input: { name: 'a' },
+			main: `
+				const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+				namespace N { declare class User {} (User as any).required.push('email'); }
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'jsx tag': {
+			input: { name: 'a' },
+			files: {
+				'app.tsx': `
+					/** @jsxRuntime classic */
+					/** @jsx h */
+					import { parse } from 'tschema/validate';
+					import { User } from './schemas';
+					function h(tag: any) { tag.required.push('email'); return null; }
+					export const el = <User />;
+					export const check = (x: unknown) => parse(User, x);
+				`,
+			},
+			main: `
+				export * from './app';
+			`,
+		},
+		'mutation in a re-export module': {
+			input: { name: 'a' },
+			files: {
+				'index.ts': `
+					import { User as U } from './schemas';
+					U.required!.push('email');
+					export { User } from './schemas';
+				`,
+			},
+			main: `
+				import { User } from './index';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'mutation in a star re-export module': {
+			input: { name: 'a' },
+			files: {
+				'index.ts': `
+					import { User as U } from './schemas';
+					U.required!.push('email');
+					export * from './schemas';
+				`,
+			},
+			main: `
+				import { User } from './index';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'dynamic import in a re-export module': {
+			input: { name: 'a' },
+			files: {
+				'index.ts': `
+					const m = await import('./schemas');
+					m.User.required!.push('email');
+					export { User } from './schemas';
+				`,
+			},
+			main: `
+				import { User } from './index';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'function leak': {
+			input: { name: 'a' },
+			files: {
+				'reg.ts': `
+					import { User } from './schemas';
+					export function get() { return User; }
+				`,
+			},
+			main: `
+				import { User } from './schemas';
+				import { get } from './reg';
+				get().required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'class leak': {
+			input: { name: 'a' },
+			files: {
+				'reg.ts': `
+					import { User } from './schemas';
+					export class Reg { static User = User; }
+				`,
+			},
+			main: `
+				import { User } from './schemas';
+				import { Reg } from './reg';
+				Reg.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'eval in a re-export module': {
+			input: { name: 'a' },
+			files: {
+				'index.ts': `
+					export { User } from './schemas';
+					eval('0');
+				`,
+			},
+			main: `
+				import { User as V } from './index';
+				import { User } from './schemas';
+				V.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
 		'unresolved ref': {
 			input: { a: 1 },
 			main: `
@@ -989,6 +1187,44 @@ describe('rolldown (mutations)', () => {
 		await expect(compile(files)).rejects.toThrow(ReferenceError);
 	}, 10_000);
 
+	it('should keep each tschema copy apart', async () => {
+		let dir = await mkdtemp(join(tmpdir(), 'tschema-'));
+		for (let pkg of ['a', 'b']) {
+			let lib = join(dir, pkg, 'node_modules', 'tschema');
+			await mkdir(lib, { recursive: true });
+			for (let file of ['mod.ts', 'validate.ts', 'compile.ts']) {
+				await copyFile(join(ROOT, file), join(lib, file));
+			}
+			await writeFile(
+				join(lib, 'package.json'),
+				JSON.stringify({
+					name: 'tschema',
+					type: 'module',
+					exports: { '.': './mod.ts', './validate': './validate.ts' },
+				}),
+			);
+			await writeFile(
+				join(dir, pkg, 'check.ts'),
+				`import * as t from 'tschema';\nimport { assert, ValidationError } from 'tschema/validate';\nexport const check = (x: unknown) => {\n\ttry { assert(t.string(), x); return 'ok'; } catch (e) { return e instanceof ValidationError; }\n};\n`,
+			);
+		}
+		await writeFile(
+			join(dir, 'main.ts'),
+			`export { check as a } from './a/check';\nexport { check as b } from './b/check';\n`,
+		);
+		let b = await bundle({
+			input: join(dir, 'main.ts'),
+			plugins: [rolldown()],
+			logLevel: 'silent',
+		});
+		let { output } = await b.write({ dir: join(dir, 'dist'), format: 'esm' });
+		await b.close();
+		let mod = await import(pathToFileURL(join(dir, 'dist', output[0].fileName)).href);
+		expect(output[0].code).not.toMatch(/new Function/);
+		expect(mod.a(1)).toBe(true);
+		expect(mod.b(1)).toBe(true);
+	});
+
 	it('should not see changes in other modules', async () => {
 		let out = await check({
 			input: { name: 'a' },
@@ -1158,6 +1394,38 @@ describe('vite', () => {
 		let code = output.output[0].code;
 		expect(code).not.toMatch(/new Function/);
 		expect(code).toMatch(/tschema:Person-/);
+	});
+
+	it('should not compile files with import.meta.glob', async () => {
+		let root = await project({
+			'schemas.ts': SCHEMAS,
+			'tree.ts': TREE,
+			'main.ts': `
+				import { parse } from 'tschema/validate';
+				import { Person } from './schemas';
+				const mods = import.meta.glob('./schemas.ts', { eager: true });
+				(mods['./schemas.ts'] as any).Person.required.push('tags');
+				export const user = (x: unknown) => parse(Person, x);
+			`,
+		});
+		let result = await build({
+			root,
+			logLevel: 'silent',
+			configFile: false,
+			plugins: [vite()],
+			resolve: { alias: ALIAS },
+			build: {
+				write: false,
+				minify: false,
+				lib: { entry: join(root, 'main.ts'), formats: ['es'] },
+			},
+		});
+		let output = Array.isArray(result) ? result[0] : result;
+		if (!('output' in output)) throw new Error('Expected build output');
+		let code = output.output[0].code;
+		expect(code).toMatch(/new Function/);
+		expect(code).not.toMatch(/tschema:Person-/);
+		await rm(root, { recursive: true });
 	});
 
 	it('should compile in dev mode', async () => {
