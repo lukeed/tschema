@@ -579,6 +579,15 @@ function analyze(id: string, ast: ESTree.Program): Module {
 				? node.callee.name
 				: '';
 		if (callee === 'eval') mod.escaped.add('*');
+		if (
+			node.type === 'CallExpression' &&
+			node.callee.type === 'MemberExpression' &&
+			node.callee.object.type === 'MetaProperty' &&
+			node.callee.property.type === 'Identifier' &&
+			node.callee.property.name === 'glob'
+		) {
+			mod.escaped.add('*');
+		}
 		let source =
 			node.type === 'ImportExpression'
 				? node.source
@@ -607,6 +616,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		}
 	});
 
+	if (mod.escaped.has('*')) roots.push(...mod.bindings.keys());
 	for (let name of roots) escape(mod, name);
 
 	return mod;
@@ -659,7 +669,7 @@ async function locate(
 	let m = await target(s, mod, source);
 	if (name === '*') return [m, '*'];
 	let key = m.id + '\0' + name;
-	if (seen.has(key) || m.escaped.has('*')) throw new Dynamic();
+	if (seen.has(key)) throw new Dynamic();
 	seen.add(key);
 	let entry = m.exports.get(name);
 	if (entry) {
@@ -1144,6 +1154,7 @@ function plugin() {
 						schemas.push(undefined);
 					}
 				}
+				for (let i = 0; i < session.loaded.length; i++) await ready(session, session.loaded[i]);
 			} while (session.changes !== before);
 
 			let edits: Edit[] = [];
@@ -1162,7 +1173,11 @@ function plugin() {
 					continue;
 				}
 
-				let hash = createHash('sha256').update(out).digest('hex').slice(0, 8);
+				let resolved = await ctx.resolve(from, id);
+				let hash = createHash('sha256')
+					.update(out + '\0' + (resolved ? resolved.id : from))
+					.digest('hex')
+					.slice(0, 8);
 				let label = arg.type === 'Identifier' ? arg.name : 'schema';
 				let entry = `${label}-${hash}`;
 
