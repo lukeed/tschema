@@ -44,7 +44,7 @@ export type Invalid = {
  * }
  * ```
  */
-export type Result<T extends Type> = Result.Ok<T> | Result.Err<T>;
+export type Result<T extends Type> = Result.Ok<T> | Result.Err;
 
 export declare namespace Result {
 	/** A valid input, typed as the schema's {@link Infer} type. */
@@ -55,8 +55,7 @@ export declare namespace Result {
 	};
 
 	/** An invalid input, with all of its {@link Invalid} errors. */
-	// oxlint-disable-next-line no-unused-vars
-	type Err<T extends Type> = {
+	type Err = {
 		ok: false;
 		value?: never;
 		errors: Invalid[];
