@@ -314,11 +314,18 @@ function usage(
 			case 'TSNonNullExpression':
 			case 'TSTypeAssertion':
 			case 'ArrayExpression':
-			case 'ObjectExpression':
 			case 'SpreadElement':
 			case 'LogicalExpression':
 			case 'ReturnStatement':
 			case 'BlockStatement':
+				break;
+			case 'ObjectExpression':
+				for (let prop of p.properties) {
+					if (prop.type === 'SpreadElement') continue;
+					if (prop.kind !== 'init' || prop.method || prop.value.type === 'FunctionExpression') {
+						return true;
+					}
+				}
 				break;
 			case 'Property':
 				if (p.value !== child) return false;
@@ -334,14 +341,20 @@ function usage(
 				break;
 			case 'BinaryExpression':
 			case 'ExportSpecifier':
+			case 'ExpressionStatement':
 				return false;
 			case 'UnaryExpression':
 				return p.operator === 'delete';
 			case 'CallExpression': {
 				if (p.callee === child) return true;
-				let local = root(p.callee);
-				let b = local && !shadowed(local, stack) && mod.bindings.get(local);
-				if (b && b.kind === 'import' && VALIDATE.has(b.source)) return false;
+				let id = p.callee.type === 'MemberExpression' ? p.callee.object : p.callee;
+				let b = id.type === 'Identifier' && !shadowed(id.name, stack) && mod.bindings.get(id.name);
+				if (b && b.kind === 'import' && VALIDATE.has(b.source)) {
+					if ((id === p.callee) === (b.name === '*')) return true;
+					// validate and parse return their input
+					if (p.arguments[0] === child && child.type !== 'SpreadElement') return false;
+					break;
+				}
 				if (!builder(mod, p.callee, stack)) return true;
 				break;
 			}
