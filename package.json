@@ -8,6 +8,7 @@
 		"release": "bun scripts/release.ts",
 		"bench": "bun run build && bun bench/build.ts && bun run bench:bun && bun run bench:node",
 		"test": "bun test",
+		"fuzz": "bun scripts/fuzz.ts",
 		"types": "bun run build && bun bench/build.ts && tsc",
 		"lint": "oxlint",
 		"fmt": "oxfmt",

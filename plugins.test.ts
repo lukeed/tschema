@@ -7,6 +7,7 @@ import { rolldown as bundle } from 'rolldown';
 import { parseSync } from 'rolldown/utils';
 import { build, createServer } from 'vite';
 import { rolldown, vite } from './plugins';
+import * as fuzz from './scripts/fuzz';
 import * as suite from './scripts/suite';
 
 import type { InputOptions } from 'rolldown';
@@ -1589,6 +1590,46 @@ describe('transform', () => {
 		let code = `import { parse } from 'tschema/validate';\nimport { S } from './stars';\nparse(S, 1);`;
 		await expect(hook.handler.call(ctx, code, join(dir, 'main.ts'))).rejects.toThrow('boom');
 	});
+});
+
+describe('rolldown (fuzz)', () => {
+	it('should match the runtime on generated projects', async () => {
+		let failed: number[] = [];
+		let compiled = 0;
+		for (let seed = 1; seed <= 100; seed++) {
+			let report = await fuzz.run(seed);
+			if (report.failed) failed.push(seed);
+			if (report.compiled) compiled++;
+		}
+		expect(failed).toStrictEqual([]);
+		expect(compiled).toBeGreaterThan(90);
+	}, 60_000);
+
+	it('should shrink a failing project', async () => {
+		let unused = `const c1 = (x: unknown) => JSON.stringify(parse(S1, x)) ?? 'undefined';`;
+		let report = await fuzz.run(0, {
+			's0.ts': [
+				`import * as t from 'tschema';`,
+				`export const S0 = t.object({ name: t.string() });`,
+				`export const S1 = t.object({ age: t.integer() });`,
+			],
+			'patch.ts': [`import { S0 } from './s0';`, `S0.additionalProperties = true;`],
+			'extra.ts': [`export const X = 1;`],
+			'main.ts': [
+				`import { parse } from 'tschema/validate';`,
+				`import './patch';`,
+				`import { S0, S1 } from './s0';`,
+				`const c0 = (x: unknown) => JSON.stringify(parse(S0, x)) ?? 'undefined';`,
+				unused,
+			],
+		});
+		expect(report.failed).toBe(true);
+		let small = await fuzz.shrink(report);
+		expect(small.failed).toBe(true);
+		expect(small.project['patch.ts']).toBeDefined();
+		expect(small.project['extra.ts']).toBeUndefined();
+		expect(small.project['main.ts']).not.toContain(unused);
+	}, 60_000);
 });
 
 describe('rolldown (suite)', () => {
