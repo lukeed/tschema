@@ -9,6 +9,8 @@ import { build, createServer } from 'vite';
 import { rolldown, vite } from './plugins';
 import * as suite from './scripts/suite';
 
+import type { InputOptions } from 'rolldown';
+
 const ROOT = import.meta.dir;
 
 const ALIAS = {
@@ -62,6 +64,7 @@ async function compile(
 	files: Record<string, string>,
 	entry = 'main.ts',
 	aot = true,
+	options: Omit<InputOptions, 'input' | 'plugins'> = {},
 ): Promise<Output> {
 	let dir = await project(files);
 	let b = await bundle({
@@ -69,6 +72,7 @@ async function compile(
 		plugins: aot ? [rolldown()] : [],
 		resolve: { alias: ALIAS },
 		logLevel: 'silent',
+		...options,
 	});
 	let { output } = await b.write({ dir: join(dir, 'dist'), format: 'esm', sourcemap: true });
 	await b.close();
@@ -228,7 +232,7 @@ describe('rolldown (dynamic)', () => {
 
 	it('should keep the runtime compiler', () => {
 		expect(out.code).toMatch(/new Function/);
-		expect(out.code).not.toMatch(/tschema:\w+-[\da-f]{8}/);
+		expect(out.code).not.toMatch(/tschema:\w+-[\da-f]{16}/);
 	});
 
 	it('should validate at runtime', () => {
@@ -446,7 +450,7 @@ describe('rolldown (expressions)', () => {
 	});
 
 	it('should compile each distinct static schema once', () => {
-		let entries = [...new Set(out.code.match(/tschema:\w+-[\da-f]{8}/g))];
+		let entries = [...new Set(out.code.match(/tschema:\w+-[\da-f]{16}/g))];
 		expect(entries.filter((x) => !x.startsWith('tschema:schema-'))).toStrictEqual([
 			expect.stringMatching(/^tschema:D-/),
 		]);
@@ -500,13 +504,17 @@ describe('rolldown (mutations)', () => {
 		input: unknown;
 		main: string;
 		files?: Record<string, string>;
+		options?: Omit<InputOptions, 'input' | 'plugins'>;
 	};
 
 	async function check(c: Case) {
 		let files = { 'schemas.ts': SHARED, ...c.files, 'main.ts': HEAD + c.main };
-		let [runtime, aot] = await Promise.all([compile(files, 'main.ts', false), compile(files)]);
+		let [runtime, aot] = await Promise.all([
+			compile(files, 'main.ts', false, c.options),
+			compile(files, 'main.ts', true, c.options),
+		]);
 		return {
-			compiled: /tschema:\w+-[\da-f]{8}/.test(aot.code),
+			compiled: /tschema:[\w$]+-[\da-f]{16}/.test(aot.code),
 			runtime: runtime.mod.check(c.input),
 			aot: aot.mod.check(c.input),
 		};
@@ -579,7 +587,206 @@ describe('rolldown (mutations)', () => {
 		`,
 	};
 
+	COMPILED['import kept for side effects'] = {
+		input: { name: 'a' },
+		files: {
+			'other.ts': `
+				import * as t from 'tschema';
+				export const Other = t.object({ name: t.string(), email: t.optional(t.string()) });
+			`,
+			'patch.ts': `
+				import * as t from 'tschema';
+				import { Other } from './other';
+				export const User = t.object({ name: t.string() });
+				Other.required!.push('email');
+			`,
+		},
+		main: `
+			import { User } from './patch';
+			import { Other } from './other';
+			let O: any = Other;
+			export const check = (x: unknown) => [parse(User, x), parse(O, x)];
+		`,
+	};
+
+	COMPILED['generated name in use'] = {
+		input: 'a',
+		main: `
+			// __tschema0
+			export const check = (x: unknown) => [parse(t.string(), x), parse(t.number(), x)];
+		`,
+	};
+
+	COMPILED['shared subschemas'] = {
+		input: 'a',
+		main: [
+			'const A0 = t.string({ minLength: 1 });',
+			...Array.from({ length: 22 }, (_, i) => `const A${i + 1} = t.any(A${i}, A${i});`),
+			'export const check = (x: unknown) => parse(A22, x);',
+		].join('\n'),
+	};
+
+	COMPILED['large registry'] = {
+		input: 'a',
+		main: [
+			'const S = t.string();',
+			`const R = { ${Array.from({ length: 16000 }, (_, i) => `k${i}: S`).join(', ')} };`,
+			'export const check = (x: unknown) => parse(R.k0, x);',
+		].join('\n'),
+	};
+
 	const RUNTIME: Record<string, Case> = {
+		'hash in a file name': {
+			input: { name: 'a' },
+			files: { 'idx#1.ts': `export { User } from './schemas';` },
+			main: `
+				import { User as U } from './idx#1';
+				import { User } from './schemas';
+				U.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'jsx in a js re-export': {
+			input: { name: 'a' },
+			options: { moduleTypes: { '.js': 'jsx' } },
+			files: {
+				'idx.js': `export { User } from './schemas';\nfunction h() { return null; }\nexport const el = <div />;\n`,
+			},
+			main: `
+				import { User as U } from './idx.js';
+				import { User } from './schemas';
+				U.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'computed import in a dependency': {
+			input: { u: { name: 'a' }, e: 'x' },
+			files: {
+				'e.ts': `import * as t from 'tschema';\nexport const Extra = t.string();`,
+				'd.ts': `
+					const name = 'schemas';
+					const m: any = await import(\`./\${name}.ts\`);
+					m.User.required.push('email');
+					export { Extra } from './e';
+				`,
+			},
+			main: `
+				import { User } from './schemas';
+				import { Extra } from './d';
+				export const check = (x: unknown) => parse(t.object({ u: User, e: Extra }), x);
+			`,
+		},
+		'computed member key': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, toString: (0, function (this: any) { this.s.required.push('email'); return 'k'; }) };
+				export const k = ({} as any)[R as any];
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'computed object key': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const R = { s: User, toString: (0, function (this: any) { this.s.required.push('email'); return 'k'; }) };
+				export const K = { [R as any]: 1 };
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'conditional function value': {
+			input: { name: 'a' },
+			main: `
+				import { User } from './schemas';
+				const c = false as boolean;
+				const R = { s: User, toString: c ? 0 : function (this: any) { this.s.required.push('email'); return 'k'; } };
+				export const k = ({} as any)[R as any];
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'namespace export shadows': {
+			input: 'ab',
+			main: `
+				const User = t.string();
+				namespace N {
+					export const User = t.string({ minLength: 5 });
+					export const check = (x: unknown) => parse(User, x);
+				}
+				export const check = N.check;
+			`,
+		},
+		'enum member scope': {
+			input: null,
+			main: `
+				const S = t.string();
+				let result: unknown;
+				enum E { S = 7, X = (() => { try { result = parse(S as any, 'ab'); } catch (e) { result = (e as Error).name; } return 1; })() }
+				export const check = (_: unknown) => [result, E.X];
+			`,
+		},
+		'namespace with only declarations': {
+			input: { name: '' },
+			main: `
+				import { User } from './schemas';
+				namespace N {
+					namespace User { declare const x: number; }
+					export const check = (x: unknown) => parse(User as any, x);
+				}
+				export const check = N.check;
+			`,
+		},
+		'star string export name': {
+			input: 'ab',
+			files: {
+				'idx.ts': `
+					import * as t from 'tschema';
+					const Real = { Inner: t.string({ minLength: 5 }) };
+					export { Real as "*" };
+					export const Inner = t.string();
+				`,
+			},
+			main: `
+				import { "*" as R } from './idx';
+				export const check = (x: unknown) => parse(R.Inner, x);
+			`,
+		},
+		'ambiguous star export': {
+			input: 'ab',
+			files: {
+				'a.ts': `import * as t from 'tschema';\nexport const S = t.string({ minLength: 5 });`,
+				'b.ts': `import * as t from 'tschema';\nexport const S = t.string();`,
+				'idx.ts': `export * from './a';\nexport * from './b';`,
+			},
+			main: `
+				import * as idx from './idx';
+				export const check = (x: unknown) => {
+					try { return parse(idx.S, x); } catch { return 'error'; }
+				};
+			`,
+		},
+		'async recursive': {
+			input: { value: 'nope' },
+			main: `
+				const Node = t.recursive('Node', async (self: any) => t.object({ value: t.integer(), next: t.optional(self) }));
+				export const check = (x: unknown) => parse(Node, x);
+			`,
+		},
+		'recursive param shadows a builder': {
+			input: 'ab',
+			main: `
+				export const check = (x: unknown) => {
+					try { return parse(t.recursive('x', (t: any) => t.string({ minLength: 5 })), x); } catch { return 'error'; }
+				};
+			`,
+		},
+		'builder throws': {
+			input: 'ab',
+			main: `
+				export const check = (x: unknown) => {
+					try { return parse(t.object({ a: null as any }), x); } catch { return 'error'; }
+				};
+			`,
+		},
 		'getter in a registry': {
 			input: { name: 'a' },
 			main: `
@@ -1188,6 +1395,21 @@ describe('rolldown (mutations)', () => {
 		await expect(compile(files)).rejects.toThrow(ReferenceError);
 	}, 10_000);
 
+	it('should fail like the runtime on ambiguous imports', async () => {
+		let files = {
+			'schemas.ts': SHARED,
+			'a.ts': `import * as t from 'tschema';\nexport const S = t.string({ minLength: 5 });`,
+			'b.ts': `import * as t from 'tschema';\nexport const S = t.string();`,
+			'idx.ts': `export * from './a';\nexport * from './b';`,
+			'main.ts': `${HEAD}
+				import { S } from './idx';
+				export const check = (x: unknown) => parse(S, x);
+			`,
+		};
+		await expect(compile(files, 'main.ts', false)).rejects.toThrow();
+		await expect(compile(files)).rejects.toThrow();
+	});
+
 	it('should keep each tschema copy apart', async () => {
 		let dir = await mkdtemp(join(tmpdir(), 'tschema-'));
 		for (let pkg of ['a', 'b']) {
@@ -1287,6 +1509,12 @@ describe('transform', () => {
 	it('should not compile namespace aliases', async () => {
 		let ctx = context(async () => null);
 		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nnamespace N { export const S = t.string(); }\nimport S = N.S;\nparse(S, 1);`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should not compile regex literals the parser cannot build', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nparse(t.constant(/a{99999999999999999999}/ as any), 1);`;
 		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
 	});
 
@@ -1395,6 +1623,33 @@ describe('vite', () => {
 		let code = output.output[0].code;
 		expect(code).not.toMatch(/new Function/);
 		expect(code).toMatch(/tschema:Person-/);
+	});
+
+	it('should not read query imports as code', async () => {
+		let root = await project({
+			's.ts': `import * as t from 'tschema';\nexport default t.string();`,
+			'main.ts': `
+				import { parse } from 'tschema/validate';
+				import S from './s.ts?raw';
+				export const user = (x: unknown) => parse(S as any, x);
+			`,
+		});
+		let result = await build({
+			root,
+			logLevel: 'silent',
+			configFile: false,
+			plugins: [vite()],
+			resolve: { alias: ALIAS },
+			build: {
+				write: false,
+				minify: false,
+				lib: { entry: join(root, 'main.ts'), formats: ['es'] },
+			},
+		});
+		let output = Array.isArray(result) ? result[0] : result;
+		if (!('output' in output)) throw new Error('Expected build output');
+		expect(output.output[0].code).not.toMatch(/tschema:S-/);
+		await rm(root, { recursive: true });
 	});
 
 	it('should not compile files with import.meta.glob', async () => {
