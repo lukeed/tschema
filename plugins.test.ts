@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -1981,17 +1981,19 @@ describe('vite', () => {
 	});
 
 	it('should recompile in dev mode after a schema file changes', async () => {
-		let root = await project({
-			'schemas.ts': `import * as t from 'tschema';\nexport const User = t.string({ minLength: 2 });\n`,
-			'main.ts': `import { parse } from 'tschema/validate';\nimport { User } from './schemas';\nexport const check = (x: unknown) => parse(User, x);\n`,
-		});
+		let root = await realpath(
+			await project({
+				'schemas.ts': `import * as t from 'tschema';\nexport const User = t.string({ minLength: 2 });\n`,
+				'main.ts': `import { parse } from 'tschema/validate';\nimport { User } from './schemas';\nexport const check = (x: unknown) => parse(User, x);\n`,
+			}),
+		);
 		let server = await createServer({
 			root,
 			logLevel: 'silent',
 			configFile: false,
 			plugins: [vite()],
 			resolve: { alias: ALIAS },
-			server: { middlewareMode: true, ws: false },
+			server: { middlewareMode: true, ws: false, watch: null },
 		});
 
 		let entry = async () => {
