@@ -604,8 +604,9 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		let callee =
 			node.type === 'CallExpression' &&
 			node.callee.type === 'Identifier' &&
-			!shadowed(node.callee.name, stack) &&
-			!mod.bindings.has(node.callee.name)
+			(node.callee.name === 'eval' || node.callee.name === 'require') &&
+			!mod.bindings.has(node.callee.name) &&
+			!shadowed(node.callee.name, stack)
 				? node.callee.name
 				: '';
 		if (callee === 'eval') mod.escaped.add('*');
@@ -630,9 +631,9 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			mod.opaque = true;
 		}
 		if (node.type !== 'Identifier' && node.type !== 'JSXIdentifier') return;
-		if (shadowed(node.name, stack)) return;
 		let b = mod.bindings.get(node.name);
-		if (!b || (node.type === 'Identifier' && !reference(node, path[path.length - 1]))) return;
+		if (!b || shadowed(node.name, stack)) return;
+		if (node.type === 'Identifier' && !reference(node, path[path.length - 1])) return;
 		if (b.kind === 'import') {
 			let refs = mod.refs.get(node.name);
 			if (!refs) mod.refs.set(node.name, (refs = []));
