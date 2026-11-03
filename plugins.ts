@@ -249,11 +249,15 @@ function walk(
 	let names = scope(node, path[path.length - 1]);
 	let inner = names && names.size ? [...stack, names] : stack;
 	path.push(node);
-	for (let [key, value] of Object.entries(node)) {
-		let next = node.type === 'SwitchStatement' && key === 'discriminant' ? stack : inner;
-		if (Array.isArray(value)) {
-			for (let v of value) walk(v, next, visit, path);
-		} else walk(value, next, visit, path);
+	if (node.type === 'SwitchStatement') {
+		walk(node.discriminant, stack, visit, path);
+		for (let c of node.cases) walk(c, inner, visit, path);
+	} else {
+		for (let value of Object.values(node)) {
+			if (Array.isArray(value)) {
+				for (let v of value) walk(v, inner, visit, path);
+			} else walk(value, inner, visit, path);
+		}
 	}
 	path.pop();
 }
