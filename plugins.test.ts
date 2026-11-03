@@ -609,6 +609,31 @@ describe('rolldown (mutations)', () => {
 		`,
 	};
 
+	COMPILED['registry with a recursive schema'] = {
+		input: { name: '' },
+		main: `
+			import { User } from './schemas';
+			const Schemas = { User, Tree: t.recursive('Tree', (self) => t.array(self)) };
+			export const check = (x: unknown) => parse(Schemas.User, x);
+		`,
+	};
+
+	COMPILED['star string export name'] = {
+		input: 'ab',
+		files: {
+			'idx.ts': `
+				import * as t from 'tschema';
+				const Real = { Inner: t.string({ minLength: 5 }) };
+				export { Real as "*" };
+				export const Inner = t.string();
+			`,
+		},
+		main: `
+			import { "*" as R } from './idx';
+			export const check = (x: unknown) => parse(R.Inner, x);
+		`,
+	};
+
 	COMPILED['generated name in use'] = {
 		input: 'a',
 		main: `
@@ -650,7 +675,7 @@ describe('rolldown (mutations)', () => {
 			input: { name: 'a' },
 			options: { moduleTypes: { '.js': 'jsx' } },
 			files: {
-				'idx.js': `export { User } from './schemas';\nfunction h() { return null; }\nexport const el = <div />;\n`,
+				'idx.js': `/** @jsxRuntime classic */\n/** @jsx h */\nexport { User } from './schemas';\nfunction h() { return null; }\nexport const el = <div />;\n`,
 			},
 			main: `
 				import { User as U } from './idx.js';
@@ -733,21 +758,6 @@ describe('rolldown (mutations)', () => {
 					export const check = (x: unknown) => parse(User as any, x);
 				}
 				export const check = N.check;
-			`,
-		},
-		'star string export name': {
-			input: 'ab',
-			files: {
-				'idx.ts': `
-					import * as t from 'tschema';
-					const Real = { Inner: t.string({ minLength: 5 }) };
-					export { Real as "*" };
-					export const Inner = t.string();
-				`,
-			},
-			main: `
-				import { "*" as R } from './idx';
-				export const check = (x: unknown) => parse(R.Inner, x);
 			`,
 		},
 		'ambiguous star export': {
@@ -1486,7 +1496,10 @@ describe('transform', () => {
 	}
 
 	beforeAll(async () => {
-		dir = await project({ 'stars.ts': `export * from './missing';` });
+		dir = await project({
+			'stars.ts': `export * from './missing';`,
+			'bad.ts': `export const X = {};\n@@@`,
+		});
 	});
 
 	afterAll(async () => {
@@ -1510,6 +1523,30 @@ describe('transform', () => {
 		let ctx = context(async () => null);
 		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nnamespace N { export const S = t.string(); }\nimport S = N.S;\nparse(S, 1);`;
 		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should not compile when a dependency cannot be parsed', async () => {
+		let ctx = context(async (source) => (source === './bad' ? { id: join(dir, 'bad.ts') } : null));
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nimport { X } from './bad';\n(X as any).y = 1;\nparse(t.string(), 1);`;
+		expect(await hook.handler.call(ctx, code, join(dir, 'main.ts'))).toBe(undefined);
+		let plain = code.replace('(X as any).y = 1;', '');
+		let out = await hook.handler.call(ctx, plain, join(dir, 'main.ts'));
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+	});
+
+	it('should treat enum members as names in enum initializers', async () => {
+		let ctx = context(async () => null);
+		let head = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\n`;
+		for (let member of ['S', `'S'`]) {
+			let code = head + `enum E { ${member} = 1, X = parse(S as any, 1) as any }`;
+			expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+		}
+		let out = await hook.handler.call(
+			ctx,
+			head + `enum E { A = parse(S as any, 1) as any }`,
+			'/x/main.ts',
+		);
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
 	});
 
 	it('should not compile regex literals the parser cannot build', async () => {
