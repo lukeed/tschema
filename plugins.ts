@@ -1299,12 +1299,13 @@ function plugin() {
 
 			if (!edits.length) return;
 
-			// keep imports that TS would now elide, so their side effects still run
+			// TS may now elide an import, so keep its module running with a side-effect import
 			for (let node of ast.body) {
 				if (node.type !== 'ImportDeclaration' || node.importKind === 'type') continue;
 				let refs = node.specifiers.flatMap((s) => mod.refs.get(s.local.name) || []);
-				if (refs.length && refs.every((p) => removed.some(([a, b]) => p >= a && p < b))) {
-					edits.push([node.start, node.end, `import ${JSON.stringify(node.source.value)};`]);
+				if (refs.some((p) => removed.some(([a, b]) => p >= a && p < b))) {
+					let source = code.slice(node.source.start, node.end).replace(/;?\s*$/, '');
+					edits.push([node.end, node.end, `;import ${source};`]);
 				}
 			}
 
