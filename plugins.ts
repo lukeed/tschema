@@ -145,6 +145,7 @@ function declare(node: ESTree.Node | null | undefined, out: Set<string>) {
 
 function lexical(body: ESTree.Node[], out: Set<string>) {
 	for (let node of body) {
+		if ('declare' in node && node.declare) continue;
 		if (node.type === 'VariableDeclaration' && node.kind !== 'var') {
 			for (let d of node.declarations) declare(d.id, out);
 		} else if (
@@ -183,7 +184,7 @@ function instantiated(node: ESTree.TSModuleDeclaration | ESTree.TSGlobalDeclarat
 
 function hoist(node: unknown, out: Set<string>) {
 	if (!isNode(node)) return;
-	if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+	if (node.type === 'VariableDeclaration' && node.kind === 'var' && !node.declare) {
 		for (let d of node.declarations) declare(d.id, out);
 	}
 	if (/Function|StaticBlock|TSModuleDeclaration/.test(node.type)) return;
@@ -289,6 +290,8 @@ function reference(node: ESTree.Node, parent: ESTree.Node | undefined): boolean 
 			return parent.init === node;
 		case 'ExportSpecifier':
 			return parent.local === node;
+		case 'TSEnumMember':
+			return parent.initializer === node;
 		case 'ImportSpecifier':
 		case 'ImportDefaultSpecifier':
 		case 'ImportNamespaceSpecifier':
@@ -296,7 +299,6 @@ function reference(node: ESTree.Node, parent: ESTree.Node | undefined): boolean 
 		case 'BreakStatement':
 		case 'ContinueStatement':
 		case 'MetaProperty':
-		case 'TSEnumMember':
 		case 'TSModuleDeclaration':
 			return false;
 	}
@@ -334,7 +336,27 @@ function usage(
 			case 'ObjectExpression':
 				for (let prop of p.properties) {
 					if (prop.type === 'SpreadElement') continue;
-					if (prop.kind !== 'init' || prop.method || prop.value.type === 'FunctionExpression') {
+					let value = prop.value;
+					while (
+						value.type === 'ParenthesizedExpression' ||
+						value.type === 'TSAsExpression' ||
+						value.type === 'TSSatisfiesExpression' ||
+						value.type === 'TSNonNullExpression' ||
+						value.type === 'TSTypeAssertion'
+					) {
+						value = value.expression;
+					}
+					let k = prop.key;
+					if (
+						prop.kind !== 'init' ||
+						prop.method ||
+						(prop.computed && k.type !== 'Literal') ||
+						(!prop.computed &&
+							!prop.shorthand &&
+							((k.type === 'Identifier' && k.name === '__proto__') ||
+								(k.type === 'Literal' && k.value === '__proto__'))) ||
+						/Function|Class/.test(value.type)
+					) {
 						return true;
 					}
 				}
@@ -351,12 +373,17 @@ function usage(
 			case 'ArrowFunctionExpression':
 				if (p.body !== child) return true;
 				break;
-			case 'BinaryExpression':
 			case 'ExportSpecifier':
 			case 'ExpressionStatement':
 				return false;
+			case 'BinaryExpression':
+				return !(
+					p.operator === '===' ||
+					p.operator === '!==' ||
+					(p.operator === 'in' && p.right === child)
+				);
 			case 'UnaryExpression':
-				return p.operator === 'delete';
+				return !(p.operator === 'typeof' || p.operator === '!' || p.operator === 'void');
 			case 'CallExpression': {
 				if (p.callee === child) return true;
 				let id = p.callee.type === 'MemberExpression' ? p.callee.object : p.callee;
@@ -562,6 +589,10 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			mod.dynamic.push(source.value);
 		} else if (source) {
 			mod.escaped.add('*');
+		}
+		if (node.type === 'JSXIdentifier') {
+			if (!shadowed(node.name, stack) && mod.bindings.has(node.name)) roots.push(node.name);
+			return;
 		}
 		if (node.type !== 'Identifier' || shadowed(node.name, stack)) return;
 		let b = mod.bindings.get(node.name);
