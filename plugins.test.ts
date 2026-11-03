@@ -1635,8 +1635,9 @@ describe('transform', () => {
 
 	function context(resolve: (source: string) => Promise<{ id: string } | null>) {
 		return {
-			parse(code: string) {
-				let result = parseSync('x.ts', code, { lang: 'ts' });
+			parse(code: string, options?: { lang?: 'js' | 'jsx' | 'ts' | 'tsx' }) {
+				let lang = options?.lang || 'ts';
+				let result = parseSync('x.' + lang, code, { lang });
 				if (result.errors.length) throw new Error(result.errors[0].message);
 				return result.program;
 			},
@@ -1649,6 +1650,7 @@ describe('transform', () => {
 		dir = await project({
 			'stars.ts': `export * from './missing';`,
 			'bad.ts': `export const X = {};\n@@@`,
+			'barrel.ts': `export * from 'virtual:fn';`,
 		});
 	});
 
@@ -1688,6 +1690,32 @@ describe('transform', () => {
 		let ctx = context(async () => null);
 		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nenum E { S = 7 }\nenum E { X = parse(S as any, 1) as any }`;
 		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should only call into modules it cannot read', async () => {
+		let ctx = context(async (source) => {
+			if (source === 'virtual:fn') return { id: '\0virtual:fn' };
+			if (source === './Comp.vue') return { id: join(dir, 'Comp.vue') };
+			if (source === 'pkg/style.css') return { id: join(dir, 'node_modules/pkg/style.css') };
+			if (source === './barrel') return { id: join(dir, 'barrel.ts') };
+			return null;
+		});
+		let head = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nparse(S, 1);\n`;
+		let compiled = async (body: string) => {
+			let out = await hook.handler.call(ctx, head + body, join(dir, 'main.tsx'));
+			return out !== undefined;
+		};
+		expect(await compiled(`import { register } from 'virtual:fn';\nregister();`)).toBe(true);
+		expect(await compiled(`import { Worker } from 'virtual:fn';\nnew Worker();`)).toBe(true);
+		expect(await compiled(`import Comp from './Comp.vue';\nexport const el = <Comp />;`)).toBe(
+			true,
+		);
+		expect(await compiled(`import css from 'pkg/style.css';\nObject.assign(css, {});`)).toBe(true);
+		expect(await compiled(`import { U } from 'virtual:fn';\nObject.assign(U, {});`)).toBe(false);
+		expect(
+			await compiled(`import { U } from 'virtual:fn';\nconst R = { U };\nObject.assign(R, {});`),
+		).toBe(false);
+		expect(await compiled(`import { V } from './barrel';\nObject.assign(V, {});`)).toBe(false);
 	});
 
 	it('should treat exported import aliases as namespace values', async () => {
