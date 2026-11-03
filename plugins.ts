@@ -64,6 +64,8 @@ type Module = {
 	pending: Set<string>;
 	/** The positions of value references to each import binding. */
 	refs: Map<string, number[]>;
+	/** The `tschema/validate` calls that the plugin may compile. */
+	calls: Call[];
 	/** The {@link plain} result for each object literal. */
 	plain: WeakMap<ESTree.Node, boolean>;
 	values: Map<string, Promise<unknown>>;
@@ -84,6 +86,12 @@ type Session = {
 };
 
 type Edit = [start: number, end: number, text: string];
+
+/**
+ * @internal
+ * A `validate`, `parse`, or `assert` call: its node, function name, import source, and scopes.
+ */
+type Call = [node: ESTree.CallExpression, api: string, source: string, stack: Set<string>[]];
 
 /**
  * @internal
@@ -458,8 +466,9 @@ function api(
 	stack: Set<string>[],
 ): [name: string, source: string] | undefined {
 	let local = callee.type === 'Identifier' ? callee.name : root(callee);
-	let b = local && !shadowed(local, stack) && mod.bindings.get(local);
-	if (!b || b.kind !== 'import' || !VALIDATE.has(b.source)) return;
+	if (!local) return;
+	let b = mod.bindings.get(local);
+	if (!b || b.kind !== 'import' || !VALIDATE.has(b.source) || shadowed(local, stack)) return;
 	let name =
 		callee.type === 'Identifier'
 			? b.name
@@ -503,6 +512,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		dynamic: [],
 		pending: new Set(),
 		refs: new Map(),
+		calls: [],
 		plain: new WeakMap(),
 		values: new Map(),
 	};
@@ -601,6 +611,16 @@ function analyze(id: string, ast: ESTree.Program): Module {
 
 	let roots: string[] = [];
 	walk(ast, [], (node, stack, path) => {
+		if (node.type === 'CallExpression' && !node.optional) {
+			let found = api(mod, node.callee, stack);
+			if (
+				found &&
+				node.arguments.length === 2 &&
+				node.arguments.every((a) => a.type !== 'SpreadElement')
+			) {
+				mod.calls.push([node, ...found, stack]);
+			}
+		}
 		let callee =
 			node.type === 'CallExpression' &&
 			node.callee.type === 'Identifier' &&
@@ -1203,19 +1223,7 @@ function plugin() {
 				changes: 0,
 			};
 
-			let calls: [ESTree.CallExpression, string, string, Set<string>[]][] = [];
-			walk(ast, [], (node, stack) => {
-				if (node.type !== 'CallExpression' || node.optional) return;
-				let found = api(mod, node.callee, stack);
-				if (
-					found &&
-					node.arguments.length === 2 &&
-					node.arguments.every((a) => a.type !== 'SpreadElement')
-				) {
-					calls.push([node, ...found, stack]);
-				}
-			});
-
+			let { calls } = mod;
 			if (!calls.length) return;
 			await ready(session, mod);
 
