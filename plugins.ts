@@ -50,7 +50,11 @@ type Module = {
 	bindings: Map<string, Binding>;
 	exports: Map<string, Export>;
 	stars: string[];
-	mutated: Set<string>;
+	/** The bindings whose values may change, or `*` for all of them. */
+	escaped: Set<string>;
+	/** The bindings held by each top-level `const` value. */
+	deps: Map<string, Set<string>>;
+	settled?: Promise<void>;
 	values: Map<string, Promise<unknown>>;
 };
 
@@ -70,6 +74,28 @@ type Edit = [start: number, end: number, text: string];
  * Thrown when an expression cannot be evaluated at build time.
  */
 class Dynamic extends Error {}
+
+/**
+ * @internal
+ * The `TS*` nodes that hold runtime code. All other `TS*` nodes are types.
+ */
+const VALUES = new Set([
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSTypeAssertion',
+	'TSInstantiationExpression',
+	'TSEnumDeclaration',
+	'TSEnumBody',
+	'TSEnumMember',
+	'TSModuleDeclaration',
+	'TSModuleBlock',
+	'TSExportAssignment',
+	'TSImportEqualsDeclaration',
+	'TSExternalModuleReference',
+	'TSQualifiedName',
+	'TSParameterProperty',
+]);
 
 function isNode(x: unknown): x is ESTree.Node {
 	return typeof x === 'object' && x !== null && 'type' in x && typeof x.type === 'string';
@@ -188,17 +214,20 @@ function scope(node: ESTree.Node): Set<string> | undefined {
 function walk(
 	node: unknown,
 	stack: Set<string>[],
-	visit: (node: ESTree.Node, stack: Set<string>[]) => void,
+	visit: (node: ESTree.Node, stack: Set<string>[], path: ESTree.Node[]) => void,
+	path: ESTree.Node[] = [],
 ) {
-	if (!isNode(node)) return;
-	visit(node, stack);
+	if (!isNode(node) || (node.type.startsWith('TS') && !VALUES.has(node.type))) return;
+	visit(node, stack, path);
 	let names = scope(node);
 	if (names && names.size) stack = [...stack, names];
+	path.push(node);
 	for (let value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (let v of value) walk(v, stack, visit);
-		} else walk(value, stack, visit);
+			for (let v of value) walk(v, stack, visit, path);
+		} else walk(value, stack, visit, path);
 	}
+	path.pop();
 }
 
 function shadowed(name: string, stack: Set<string>[]): boolean {
@@ -210,6 +239,158 @@ function root(node: ESTree.Node): string | undefined {
 	return node.type === 'Identifier' ? node.name : undefined;
 }
 
+/**
+ * @internal
+ * Whether an `Identifier` reads a binding, rather than declaring or naming something.
+ */
+function reference(node: ESTree.Node, parent: ESTree.Node | undefined): boolean {
+	if (!parent) return true;
+	switch (parent.type) {
+		case 'MemberExpression':
+			return parent.object === node || parent.computed;
+		case 'Property':
+		case 'MethodDefinition':
+		case 'PropertyDefinition':
+		case 'AccessorProperty':
+			return parent.value === node || parent.computed;
+		case 'VariableDeclarator':
+			return parent.init === node;
+		case 'ExportSpecifier':
+			return parent.local === node;
+		case 'ImportSpecifier':
+		case 'ImportDefaultSpecifier':
+		case 'ImportNamespaceSpecifier':
+		case 'LabeledStatement':
+		case 'BreakStatement':
+		case 'ContinueStatement':
+		case 'MetaProperty':
+		case 'TSEnumMember':
+		case 'TSModuleDeclaration':
+			return false;
+	}
+	return true;
+}
+
+/**
+ * @internal
+ * Classify how a reference uses its value, walking up from `node` through its `path`.
+ *
+ * Returns `false` for a read, the name of the top-level `const` whose value holds it,
+ * or `true` when the value escapes and may change.
+ */
+function usage(
+	mod: Module,
+	node: ESTree.Node,
+	path: ESTree.Node[],
+	stack: Set<string>[],
+): boolean | string {
+	let child = node;
+	for (let i = path.length - 1; ; i--) {
+		let p = path[i];
+		switch (p.type) {
+			case 'ParenthesizedExpression':
+			case 'TSAsExpression':
+			case 'TSSatisfiesExpression':
+			case 'TSNonNullExpression':
+			case 'TSTypeAssertion':
+			case 'ArrayExpression':
+			case 'ObjectExpression':
+			case 'SpreadElement':
+			case 'LogicalExpression':
+			case 'ReturnStatement':
+			case 'BlockStatement':
+				break;
+			case 'Property':
+				if (p.value !== child) return false;
+				break;
+			case 'MemberExpression':
+				if (p.object !== child) return false;
+				break;
+			case 'ConditionalExpression':
+				if (p.test === child) return false;
+				break;
+			case 'ArrowFunctionExpression':
+				if (p.body !== child) return true;
+				break;
+			case 'BinaryExpression':
+			case 'ExportSpecifier':
+				return false;
+			case 'UnaryExpression':
+				return p.operator === 'delete';
+			case 'CallExpression': {
+				if (p.callee === child) return true;
+				let local = root(p.callee);
+				let b = local && !shadowed(local, stack) && mod.bindings.get(local);
+				if (b && b.kind === 'import' && VALIDATE.has(b.source)) return false;
+				if (!builder(mod, p.callee, stack)) return true;
+				break;
+			}
+			case 'VariableDeclarator': {
+				let decl = path[i - 1];
+				let top = path[i - 2];
+				let global =
+					top.type === 'Program' ||
+					(top.type === 'ExportNamedDeclaration' && path[i - 3].type === 'Program');
+				return global &&
+					decl.type === 'VariableDeclaration' &&
+					decl.kind === 'const' &&
+					p.id.type === 'Identifier' &&
+					p.init === child
+					? p.id.name
+					: true;
+			}
+			case 'ExportDefaultDeclaration':
+				return child.type === 'Identifier' ? false : '*default*';
+			default:
+				return true;
+		}
+		child = p;
+	}
+}
+
+/**
+ * @internal
+ * Find the `tschema/validate` function name and import source for a call's `callee`, if any.
+ */
+function api(
+	mod: Module,
+	callee: ESTree.Node,
+	stack: Set<string>[],
+): [name: string, source: string] | undefined {
+	let local = callee.type === 'Identifier' ? callee.name : root(callee);
+	let b = local && !shadowed(local, stack) && mod.bindings.get(local);
+	if (!b || b.kind !== 'import' || !VALIDATE.has(b.source)) return;
+	let name =
+		callee.type === 'Identifier'
+			? b.name
+			: b.name === '*' &&
+				  callee.type === 'MemberExpression' &&
+				  !callee.computed &&
+				  callee.object.type === 'Identifier' &&
+				  callee.property.type === 'Identifier'
+				? callee.property.name
+				: '';
+	if (API.has(name)) return [name, b.source];
+}
+
+/**
+ * @internal
+ * Mark a binding, and each binding that its value holds, as escaped.
+ * Returns the newly escaped names.
+ */
+function escape(mod: Module, name: string): string[] {
+	let added: string[] = [];
+	let queue = [name];
+	for (let next of queue) {
+		if (mod.escaped.has(next)) continue;
+		mod.escaped.add(next);
+		added.push(next);
+		let deps = mod.deps.get(next);
+		if (deps) queue.push(...deps);
+	}
+	return added;
+}
+
 function analyze(id: string, ast: ESTree.Program): Module {
 	let mod: Module = {
 		id,
@@ -217,7 +398,8 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		bindings: new Map(),
 		exports: new Map(),
 		stars: [],
-		mutated: new Set(),
+		escaped: new Set(),
+		deps: new Map(),
 		values: new Map(),
 	};
 
@@ -299,28 +481,22 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		}
 	}
 
-	walk(ast, [], (node) => {
-		let target =
-			node.type === 'AssignmentExpression'
-				? node.left
-				: node.type === 'UpdateExpression' ||
-					  (node.type === 'UnaryExpression' && node.operator === 'delete')
-					? node.argument
-					: undefined;
-		let name = target && target.type === 'MemberExpression' && root(target);
-		if (name) mod.mutated.add(name);
-		if (node.type === 'CallExpression' && node.callee.type === 'MemberExpression') {
-			for (let arg of node.arguments) {
-				name =
-					arg.type === 'Identifier' &&
-					/^(assign|defineProperty|defineProperties|setPrototypeOf)$/.test(
-						node.callee.property.type === 'Identifier' ? node.callee.property.name : '',
-					) &&
-					arg.name;
-				if (name) mod.mutated.add(name);
-			}
+	let roots: string[] = [];
+	walk(ast, [], (node, stack, path) => {
+		if (node.type !== 'Identifier' || shadowed(node.name, stack)) return;
+		let b = mod.bindings.get(node.name);
+		if (!b || b.kind === 'other' || !reference(node, path[path.length - 1])) return;
+		let use = usage(mod, node, path, stack);
+		if (use === true) {
+			roots.push(node.name);
+		} else if (use) {
+			let deps = mod.deps.get(use);
+			if (!deps) mod.deps.set(use, (deps = new Set()));
+			deps.add(node.name);
 		}
 	});
+
+	for (let name of roots) escape(mod, name);
 
 	return mod;
 }
@@ -339,23 +515,41 @@ function load(s: Session, id: string): Promise<Module> {
 	return mod;
 }
 
-async function exported(s: Session, mod: Module, source: string, name: string): Promise<unknown> {
+async function attempt(fn: () => Promise<unknown>) {
+	try {
+		await fn();
+	} catch (err) {
+		if (!(err instanceof Dynamic)) throw err;
+	}
+}
+
+async function target(s: Session, mod: Module, source: string): Promise<Module> {
 	if (CORE.has(source) || VALIDATE.has(source)) throw new Dynamic();
 	let resolved = await s.ctx.resolve(source, mod.id);
 	if (!resolved || resolved.external || resolved.id.startsWith('\0')) throw new Dynamic();
-	let target = await load(s, resolved.id).catch(() => {
+	return load(s, resolved.id).catch(() => {
 		throw new Dynamic();
 	});
-	let entry = target.exports.get(name);
-	if (entry) {
-		return 'local' in entry
-			? binding(s, target, entry.local)
-			: exported(s, target, entry.source, entry.name);
-	}
+}
+
+/**
+ * @internal
+ * Find the module and local binding that define an export, through any re-exports.
+ */
+async function locate(
+	s: Session,
+	mod: Module,
+	source: string,
+	name: string,
+): Promise<[Module, string]> {
+	let m = await target(s, mod, source);
+	if (m.escaped.has('*')) throw new Dynamic();
+	let entry = m.exports.get(name);
+	if (entry) return 'local' in entry ? [m, entry.local] : locate(s, m, entry.source, entry.name);
 	if (name !== 'default') {
-		for (let star of target.stars) {
+		for (let star of m.stars) {
 			try {
-				return await exported(s, target, star, name);
+				return await locate(s, m, star, name);
 			} catch (err) {
 				if (!(err instanceof Dynamic)) throw err;
 			}
@@ -364,18 +558,63 @@ async function exported(s: Session, mod: Module, source: string, name: string): 
 	throw new Dynamic();
 }
 
+async function exported(s: Session, mod: Module, source: string, name: string): Promise<unknown> {
+	let [m, local] = await locate(s, mod, source, name);
+	return binding(s, m, local);
+}
+
+/**
+ * @internal
+ * Mark the escaped `names` as escaped in the modules that define them.
+ */
+async function settle(s: Session, mod: Module, names: Iterable<string>) {
+	for (let name of names) {
+		let b = mod.bindings.get(name);
+		if (!b || b.kind !== 'import') continue;
+		let { source } = b;
+		await attempt(async () => {
+			if (b.name === '*') return taint(s, await target(s, mod, source));
+			let [m, local] = await locate(s, mod, source, b.name);
+			await settle(s, m, escape(m, local));
+		});
+	}
+}
+
+/**
+ * @internal
+ * Mark every export of a module as escaped, for a namespace import that escapes.
+ */
+async function taint(s: Session, mod: Module) {
+	if (mod.escaped.has('*')) return;
+	mod.escaped.add('*');
+	for (let entry of mod.exports.values()) {
+		await attempt(async () => {
+			if ('local' in entry) return settle(s, mod, escape(mod, entry.local));
+			let [m, local] = await locate(s, mod, entry.source, entry.name);
+			await settle(s, m, escape(m, local));
+		});
+	}
+	for (let star of mod.stars) {
+		await attempt(async () => taint(s, await target(s, mod, star)));
+	}
+}
+
+function ready(s: Session, mod: Module): Promise<void> {
+	return (mod.settled ||= settle(s, mod, [...mod.escaped]));
+}
+
 function binding(s: Session, mod: Module, name: string): Promise<unknown> {
 	let value = mod.values.get(name);
 	if (!value) {
-		let b = mod.bindings.get(name);
-		value =
-			!b || b.kind === 'other' || mod.mutated.has(name)
-				? Promise.reject(new Dynamic())
-				: b.kind === 'const'
-					? evaluate(s, mod, b.init, new Map(), [])
-					: b.name === '*'
-						? Promise.reject(new Dynamic())
-						: exported(s, mod, b.source, b.name);
+		value = ready(s, mod).then(() => {
+			let b = mod.bindings.get(name);
+			if (!b || b.kind === 'other' || mod.escaped.has(name) || mod.escaped.has('*')) {
+				throw new Dynamic();
+			}
+			if (b.kind === 'const') return evaluate(s, mod, b.init, new Map(), []);
+			if (b.name === '*') throw new Dynamic();
+			return exported(s, mod, b.source, b.name);
+		});
 		mod.values.set(name, value);
 	}
 	return value;
@@ -739,28 +978,17 @@ function plugin() {
 			let calls: [ESTree.CallExpression, string, string, Set<string>[]][] = [];
 			walk(ast, [], (node, stack) => {
 				if (node.type !== 'CallExpression' || node.optional) return;
-				let callee = node.callee;
-				let name = callee.type === 'Identifier' ? callee.name : root(callee);
-				let b = name && !shadowed(name, stack) && mod.bindings.get(name);
-				if (!b || b.kind !== 'import' || !VALIDATE.has(b.source)) return;
-				let api =
-					callee.type === 'Identifier'
-						? b.name
-						: b.name === '*' &&
-							  callee.type === 'MemberExpression' &&
-							  !callee.computed &&
-							  callee.object.type === 'Identifier' &&
-							  callee.property.type === 'Identifier'
-							? callee.property.name
-							: '';
+				let found = api(mod, node.callee, stack);
 				if (
-					API.has(api) &&
+					found &&
 					node.arguments.length === 2 &&
 					node.arguments.every((a) => a.type !== 'SpreadElement')
 				) {
-					calls.push([node, api, b.source, stack]);
+					calls.push([node, ...found, stack]);
 				}
 			});
+
+			if (calls.length) await ready(session, mod);
 
 			let edits: Edit[] = [];
 			let imports = new Map<string, string>();
@@ -816,6 +1044,9 @@ function plugin() {
  * A schema is known when it is built from `tschema` calls and literal values only, including
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
  *
+ * A schema that may change after it is created also uses the runtime compiler. Only the calling
+ * module and the modules that define its schemas are checked for changes.
+ *
  * > [!IMPORTANT]
  * > Requires Vite 8 or later.
  *
@@ -855,6 +1086,9 @@ export function vite(): VitePlugin {
  * The `validate`, `parse`, and `assert` calls are replaced when their schema is known at build time.
  * A schema is known when it is built from `tschema` calls and literal values only, including
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
+ *
+ * A schema that may change after it is created also uses the runtime compiler. Only the calling
+ * module and the modules that define its schemas are checked for changes.
  *
  * ```ts
  * // rolldown.config.ts
