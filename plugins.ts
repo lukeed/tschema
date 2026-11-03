@@ -402,7 +402,7 @@ function builder(mod: Module, callee: ESTree.Node, stack: Set<string>[]): string
 	}
 }
 
-function define(target: Record<string, unknown>, key: string, value: unknown) {
+function define(target: Record<PropertyKey, unknown>, key: PropertyKey, value: unknown) {
 	Object.defineProperty(target, key, {
 		value,
 		enumerable: true,
@@ -475,14 +475,17 @@ async function evaluate(
 		}
 
 		case 'ObjectExpression': {
-			let out: Record<string, unknown> = {};
+			let out: Record<PropertyKey, unknown> = {};
 			for (let p of node.properties) {
 				if (p.type === 'SpreadElement') {
 					let value = await evaluate(s, mod, p.argument, env, stack);
 					if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 						throw new Dynamic();
 					}
-					for (let [k, v] of Object.entries(value)) define(out, k, v);
+					for (let k of Reflect.ownKeys(value)) {
+						if (!Object.prototype.propertyIsEnumerable.call(value, k)) continue;
+						define(out, k, Reflect.get(value, k));
+					}
 				} else if (
 					p.kind !== 'init' ||
 					p.method ||
