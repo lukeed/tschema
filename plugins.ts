@@ -35,10 +35,10 @@ type Context = {
 
 type Binding =
 	| { kind: 'const'; init: ESTree.Expression }
-	| { kind: 'import'; source: string; name: string }
+	| { kind: 'import'; source: string; name: string | undefined }
 	| { kind: 'other' };
 
-type Export = { local: string } | { source: string; name: string };
+type Export = { local: string } | { source: string; name: string | undefined };
 
 /**
  * @internal
@@ -56,10 +56,16 @@ type Module = {
 	deps: Map<string, Set<string>>;
 	/** The sources of `import()` and `require()` calls. */
 	dynamic: string[];
+	/** Whether a computed `import()` or `import.meta.glob` can reach any module. */
+	opaque?: true;
 	tainted?: true;
 	settled?: Promise<void>;
 	/** The bindings being evaluated, to stop at a cycle. */
 	pending: Set<string>;
+	/** The positions of value references to each import binding. */
+	refs: Map<string, number[]>;
+	/** The {@link plain} result for each object literal. */
+	plain: WeakMap<ESTree.Node, boolean>;
 	values: Map<string, Promise<unknown>>;
 };
 
@@ -73,6 +79,8 @@ type Session = {
 	loaded: Module[];
 	/** The number of bindings marked as escaped by other modules. */
 	changes: number;
+	/** Whether a module could not be read, so no call can be proven static. */
+	blind?: true;
 };
 
 type Edit = [start: number, end: number, text: string];
@@ -110,8 +118,7 @@ function isNode(x: unknown): x is ESTree.Node {
 }
 
 function lang(id: string): 'js' | 'jsx' | 'ts' | 'tsx' | undefined {
-	let match =
-		/[?&]lang\.([jt]sx?)$/.exec(id) || /\.[cm]?([jt]sx?)$/.exec(id.replace(/[?#].*$/, ''));
+	let match = /[?&]lang\.([jt]sx?)$/.exec(id) || /\.[cm]?([jt]sx?)$/.exec(id.replace(/\?.*$/, ''));
 	if (match) return match[1] === 'ts' || match[1] === 'tsx' || match[1] === 'jsx' ? match[1] : 'js';
 }
 
@@ -144,7 +151,8 @@ function declare(node: ESTree.Node | null | undefined, out: Set<string>) {
 }
 
 function lexical(body: ESTree.Node[], out: Set<string>) {
-	for (let node of body) {
+	for (let stmt of body) {
+		let node = stmt.type === 'ExportNamedDeclaration' && stmt.declaration ? stmt.declaration : stmt;
 		if ('declare' in node && node.declare) continue;
 		if (node.type === 'VariableDeclaration' && node.kind !== 'var') {
 			for (let d of node.declarations) declare(d.id, out);
@@ -175,9 +183,8 @@ function instantiated(node: ESTree.TSModuleDeclaration | ESTree.TSGlobalDeclarat
 		return (
 			d.type !== 'TSInterfaceDeclaration' &&
 			d.type !== 'TSTypeAliasDeclaration' &&
-			!(d.type === 'ExportNamedDeclaration' && d.exportKind === 'type') &&
-			!(d.type === 'ImportDeclaration' && d.importKind === 'type') &&
-			!('declare' in d && d.declare)
+			d.type !== 'TSImportEqualsDeclaration' &&
+			!(d.type === 'ExportNamedDeclaration' && d.exportKind === 'type')
 		);
 	});
 }
@@ -210,6 +217,12 @@ function scope(node: ESTree.Node, parent: ESTree.Node | undefined): Set<string> 
 			return out;
 		case 'ClassExpression':
 			if (node.id) out.add(node.id.name);
+			return out;
+		case 'TSEnumBody':
+			for (let { id } of node.members) {
+				if (id.type === 'Identifier') out.add(id.name);
+				else if (id.type === 'Literal') out.add(id.value);
+			}
 			return out;
 		case 'TSModuleBlock':
 			lexical(node.body, out);
@@ -334,38 +347,13 @@ function usage(
 			case 'BlockStatement':
 				break;
 			case 'ObjectExpression':
-				for (let prop of p.properties) {
-					if (prop.type === 'SpreadElement') continue;
-					let value = prop.value;
-					while (
-						value.type === 'ParenthesizedExpression' ||
-						value.type === 'TSAsExpression' ||
-						value.type === 'TSSatisfiesExpression' ||
-						value.type === 'TSNonNullExpression' ||
-						value.type === 'TSTypeAssertion'
-					) {
-						value = value.expression;
-					}
-					let k = prop.key;
-					if (
-						prop.kind !== 'init' ||
-						prop.method ||
-						(prop.computed && k.type !== 'Literal') ||
-						(!prop.computed &&
-							!prop.shorthand &&
-							((k.type === 'Identifier' && k.name === '__proto__') ||
-								(k.type === 'Literal' && k.value === '__proto__'))) ||
-						/Function|Class/.test(value.type)
-					) {
-						return true;
-					}
-				}
+				if (!plain(mod, p, stack)) return true;
 				break;
 			case 'Property':
-				if (p.value !== child) return false;
+				if (p.value !== child) return true;
 				break;
 			case 'MemberExpression':
-				if (p.object !== child) return false;
+				if (p.object !== child) return true;
 				break;
 			case 'ConditionalExpression':
 				if (p.test === child) return false;
@@ -389,7 +377,7 @@ function usage(
 				let id = p.callee.type === 'MemberExpression' ? p.callee.object : p.callee;
 				let b = id.type === 'Identifier' && !shadowed(id.name, stack) && mod.bindings.get(id.name);
 				if (b && b.kind === 'import' && VALIDATE.has(b.source)) {
-					if ((id === p.callee) === (b.name === '*')) return true;
+					if ((id === p.callee) === (b.name === undefined)) return true;
 					// validate and parse return their input
 					if (p.arguments[0] === child && child.type !== 'SpreadElement') return false;
 					break;
@@ -422,6 +410,46 @@ function usage(
 
 /**
  * @internal
+ * Whether an object literal holds only data, so that reading it, or converting it, cannot run code.
+ * A function anywhere in a value could become a getter, `valueOf`, or method that sees `this`.
+ */
+function plain(mod: Module, node: ESTree.ObjectExpression, stack: Set<string>[]): boolean {
+	let known = mod.plain.get(node);
+	if (known !== undefined) return known;
+	let code = (x: unknown): boolean => {
+		if (!isNode(x)) return false;
+		if (/Function|Class/.test(x.type)) return true;
+		if (x.type === 'CallExpression' && builder(mod, x.callee, stack) === 'recursive') {
+			let [id, define] = x.arguments;
+			return (
+				code(id) ||
+				(define && define.type === 'ArrowFunctionExpression' ? code(define.body) : code(define))
+			);
+		}
+		return Object.values(x).some((v) => (Array.isArray(v) ? v.some(code) : code(v)));
+	};
+	let ok = node.properties.every((prop) => {
+		if (prop.type === 'SpreadElement') return !code(prop.argument);
+		let k = prop.key;
+		return (
+			prop.kind === 'init' &&
+			!prop.method &&
+			!(prop.computed && k.type !== 'Literal') &&
+			!(
+				!prop.computed &&
+				!prop.shorthand &&
+				((k.type === 'Identifier' && k.name === '__proto__') ||
+					(k.type === 'Literal' && k.value === '__proto__'))
+			) &&
+			!code(prop.value)
+		);
+	});
+	mod.plain.set(node, ok);
+	return ok;
+}
+
+/**
+ * @internal
  * Find the `tschema/validate` function name and import source for a call's `callee`, if any.
  */
 function api(
@@ -435,14 +463,14 @@ function api(
 	let name =
 		callee.type === 'Identifier'
 			? b.name
-			: b.name === '*' &&
+			: b.name === undefined &&
 				  callee.type === 'MemberExpression' &&
 				  !callee.computed &&
 				  callee.object.type === 'Identifier' &&
 				  callee.property.type === 'Identifier'
 				? callee.property.name
 				: '';
-	if (API.has(name)) return [name, b.source];
+	if (name && API.has(name)) return [name, b.source];
 }
 
 /**
@@ -474,6 +502,8 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		deps: new Map(),
 		dynamic: [],
 		pending: new Set(),
+		refs: new Map(),
+		plain: new WeakMap(),
 		values: new Map(),
 	};
 
@@ -490,7 +520,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 							? nameOf(s.imported)
 							: s.type === 'ImportDefaultSpecifier'
 								? 'default'
-								: '*',
+								: undefined,
 				});
 			}
 			continue;
@@ -499,7 +529,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		if (node.type === 'ExportAllDeclaration') {
 			if (node.exportKind === 'type') continue;
 			if (node.exported) {
-				mod.exports.set(nameOf(node.exported), { source: node.source.value, name: '*' });
+				mod.exports.set(nameOf(node.exported), { source: node.source.value, name: undefined });
 			} else {
 				mod.stars.push(node.source.value);
 			}
@@ -548,7 +578,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			mod.bindings.set(
 				node.id.name,
 				ref.type === 'TSExternalModuleReference'
-					? { kind: 'import', source: ref.expression.value, name: '*' }
+					? { kind: 'import', source: ref.expression.value, name: undefined }
 					: { kind: 'other' },
 			);
 		} else if (node.type === 'VariableDeclaration' && !node.declare) {
@@ -586,7 +616,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			node.callee.property.type === 'Identifier' &&
 			node.callee.property.name === 'glob'
 		) {
-			mod.escaped.add('*');
+			mod.opaque = true;
 		}
 		let source =
 			node.type === 'ImportExpression'
@@ -597,15 +627,22 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		if (source && source.type === 'Literal' && typeof source.value === 'string') {
 			mod.dynamic.push(source.value);
 		} else if (source) {
-			mod.escaped.add('*');
+			mod.opaque = true;
+		}
+		if (node.type !== 'Identifier' && node.type !== 'JSXIdentifier') return;
+		if (shadowed(node.name, stack)) return;
+		let b = mod.bindings.get(node.name);
+		if (!b || (node.type === 'Identifier' && !reference(node, path[path.length - 1]))) return;
+		if (b.kind === 'import') {
+			let refs = mod.refs.get(node.name);
+			if (!refs) mod.refs.set(node.name, (refs = []));
+			refs.push(node.start);
 		}
 		if (node.type === 'JSXIdentifier') {
-			if (!shadowed(node.name, stack) && mod.bindings.has(node.name)) roots.push(node.name);
+			roots.push(node.name);
 			return;
 		}
-		if (node.type !== 'Identifier' || shadowed(node.name, stack)) return;
-		let b = mod.bindings.get(node.name);
-		if (!b || b.kind === 'other' || !reference(node, path[path.length - 1])) return;
+		if (b.kind === 'other') return;
 		let use = usage(mod, node, path, stack);
 		if (use === true) {
 			roots.push(node.name);
@@ -616,26 +653,48 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		}
 	});
 
+	if (mod.opaque) mod.escaped.add('*');
 	if (mod.escaped.has('*')) roots.push(...mod.bindings.keys());
 	for (let name of roots) escape(mod, name);
 
 	return mod;
 }
 
+/**
+ * @internal
+ * Read and analyze a module. Modules that are not plain JS or TS are never read, since their
+ * values cannot be known; a JS or TS module that cannot be read makes the session blind.
+ */
 function load(s: Session, id: string): Promise<Module> {
 	let mod = s.modules.get(id);
 	if (!mod) {
-		s.modules.set(
-			id,
-			(mod = readFile(id.replace(/[?#].*$/, ''), 'utf8').then((code) => {
-				s.ctx.addWatchFile(id);
-				let m = analyze(id, s.ctx.parse(code, { lang: lang(id) || 'js' }));
-				s.loaded.push(m);
-				return m;
-			})),
-		);
+		mod = (async () => {
+			let type = lang(id);
+			if (!type || id.includes('?')) throw new Dynamic();
+			try {
+				var code = await readFile(id, 'utf8');
+				var ast = program(s.ctx, code, type);
+			} catch {
+				s.blind = true;
+				throw new Dynamic();
+			}
+			s.ctx.addWatchFile(id);
+			let m = analyze(id, ast);
+			s.loaded.push(m);
+			return m;
+		})();
+		s.modules.set(id, mod);
 	}
 	return mod;
+}
+
+function program(ctx: Context, code: string, type: 'js' | 'jsx' | 'ts' | 'tsx'): ESTree.Program {
+	try {
+		return ctx.parse(code, { lang: type });
+	} catch (err) {
+		if (type !== 'js') throw err;
+		return ctx.parse(code, { lang: 'jsx' });
+	}
 }
 
 async function attempt(fn: () => Promise<unknown>) {
@@ -650,9 +709,7 @@ async function target(s: Session, mod: Module, source: string): Promise<Module> 
 	if (CORE.has(source) || VALIDATE.has(source)) throw new Dynamic();
 	let resolved = await s.ctx.resolve(source, mod.id);
 	if (!resolved || resolved.external || resolved.id.startsWith('\0')) throw new Dynamic();
-	return load(s, resolved.id).catch(() => {
-		throw new Dynamic();
-	});
+	return load(s, resolved.id);
 }
 
 /**
@@ -663,11 +720,11 @@ async function locate(
 	s: Session,
 	mod: Module,
 	source: string,
-	name: string,
+	name: string | undefined,
 	seen = new Set<string>(),
-): Promise<[Module, string]> {
+): Promise<[Module, string | undefined]> {
 	let m = await target(s, mod, source);
-	if (name === '*') return [m, '*'];
+	if (name === undefined) return [m, undefined];
 	let key = m.id + '\0' + name;
 	if (seen.has(key)) throw new Dynamic();
 	seen.add(key);
@@ -675,29 +732,34 @@ async function locate(
 	if (entry) {
 		return 'local' in entry ? [m, entry.local] : locate(s, m, entry.source, entry.name, seen);
 	}
-	if (name !== 'default') {
-		for (let star of m.stars) {
-			try {
-				return await locate(s, m, star, name, seen);
-			} catch (err) {
-				if (!(err instanceof Dynamic)) throw err;
-			}
+	if (name === 'default') throw new Dynamic();
+	let hits: [Module, string | undefined][] = [];
+	for (let star of m.stars) {
+		try {
+			hits.push(await locate(s, m, star, name, seen));
+		} catch (err) {
+			if (!(err instanceof Dynamic)) throw err;
 		}
 	}
-	throw new Dynamic();
+	// an ambiguous star export is not exported at all
+	if (!hits.length || hits.some(([hm, hl]) => hm !== hits[0][0] || hl !== hits[0][1])) {
+		throw new Dynamic();
+	}
+	return hits[0];
 }
 
 async function exported(s: Session, mod: Module, source: string, name: string): Promise<unknown> {
 	let [m, local] = await locate(s, mod, source, name);
+	if (local === undefined) throw new Dynamic();
 	return binding(s, m, local);
 }
 
 /**
  * @internal
- * Mark a binding as escaped, or every binding for `*`, and push the change to its sources.
+ * Mark a binding as escaped, or the whole module for a namespace, and push the change to its sources.
  */
-async function mark(s: Session, mod: Module, name: string) {
-	if (name === '*') return taint(s, mod);
+async function mark(s: Session, mod: Module, name: string | undefined) {
+	if (name === undefined) return taint(s, mod);
 	let added = escape(mod, name);
 	s.changes += added.length;
 	await settle(s, mod, added);
@@ -738,6 +800,7 @@ async function taint(s: Session, mod: Module) {
 
 function ready(s: Session, mod: Module): Promise<void> {
 	return (mod.settled ||= (async () => {
+		if (mod.opaque) s.blind = true;
 		await settle(s, mod, [...mod.escaped]);
 		for (let source of mod.dynamic) {
 			await attempt(async () => taint(s, await target(s, mod, source)));
@@ -756,7 +819,7 @@ function binding(s: Session, mod: Module, name: string): Promise<unknown> {
 				throw new Dynamic();
 			}
 			if (b.kind === 'const') return evaluate(s, mod, b.init, new Map(), []);
-			if (b.name === '*') throw new Dynamic();
+			if (b.name === undefined) throw new Dynamic();
 			return exported(s, mod, b.source, b.name);
 		})
 		.finally(() => mod.pending.delete(name));
@@ -773,9 +836,9 @@ function builder(mod: Module, callee: ESTree.Node, stack: Set<string>[]): string
 	if (!name || shadowed(name, stack)) return;
 	let b = mod.bindings.get(name);
 	if (!b || b.kind !== 'import' || !CORE.has(b.source)) return;
-	if (callee.type === 'Identifier') return b.name === '*' ? undefined : b.name;
+	if (callee.type === 'Identifier') return b.name;
 	if (
-		b.name === '*' &&
+		b.name === undefined &&
 		callee.type === 'MemberExpression' &&
 		!callee.computed &&
 		callee.object.type === 'Identifier' &&
@@ -807,6 +870,18 @@ function key(node: ESTree.PropertyKey, computed: boolean): string {
 
 /**
  * @internal
+ * Call a builder. A builder that throws leaves the call to the runtime, which throws the same error.
+ */
+function call(fn: Function, args: unknown[]): unknown {
+	try {
+		return Reflect.apply(fn, undefined, args);
+	} catch {
+		throw new Dynamic();
+	}
+}
+
+/**
+ * @internal
  * Evaluate a static `tschema` expression without executing any user code.
  */
 async function evaluate(
@@ -825,7 +900,11 @@ async function evaluate(
 			return evaluate(s, mod, node.expression, env, stack);
 
 		case 'Literal':
-			if (node.value === null || /^(string|number|boolean)$/.test(typeof node.value)) {
+			if (
+				node.value === null
+					? node.raw === 'null'
+					: /^(string|number|boolean)$/.test(typeof node.value)
+			) {
 				return node.value;
 			}
 			throw new Dynamic();
@@ -899,7 +978,8 @@ async function evaluate(
 				!shadowed(node.object.name, stack)
 			) {
 				let b = mod.bindings.get(node.object.name);
-				if (b && b.kind === 'import' && b.name === '*') return exported(s, mod, b.source, name);
+				if (b && b.kind === 'import' && b.name === undefined)
+					return exported(s, mod, b.source, name);
 			}
 			let value = await evaluate(s, mod, node.object, env, stack);
 			if (
@@ -913,7 +993,8 @@ async function evaluate(
 		}
 
 		case 'CallExpression': {
-			let name = !node.optional && builder(mod, node.callee, stack);
+			let local = root(node.callee);
+			let name = !node.optional && !(local && env.has(local)) && builder(mod, node.callee, stack);
 			let fn = name && BUILDERS.get(name);
 			if (typeof fn !== 'function') throw new Dynamic();
 
@@ -924,6 +1005,7 @@ async function evaluate(
 					typeof value !== 'string' ||
 					!define ||
 					define.type !== 'ArrowFunctionExpression' ||
+					define.async ||
 					define.params.length !== 1 ||
 					define.params[0].type !== 'Identifier'
 				) {
@@ -937,7 +1019,7 @@ async function evaluate(
 				}
 				let inner = new Map(env).set(define.params[0].name, { $ref: value });
 				let schema = await evaluate(s, mod, body, inner, stack);
-				return Reflect.apply(fn, undefined, [value, () => schema]);
+				return call(fn, [value, () => schema]);
 			}
 
 			let args: unknown[] = [];
@@ -950,7 +1032,7 @@ async function evaluate(
 					args.push(await evaluate(s, mod, arg, env, stack));
 				}
 			}
-			return Reflect.apply(fn, undefined, args);
+			return call(fn, args);
 		}
 	}
 
@@ -967,11 +1049,7 @@ function emit(schema: unknown, from: string): string {
 	if (deps.length) {
 		out += `import { ${deps.map((d) => '$' + d).join(', ')} } from "${PREFIX}helpers";\n`;
 	}
-	return (
-		out +
-		code +
-		`\nexport const schema = ${JSON.stringify(schema)};\nexport { validate, parse, assert };\n`
-	);
+	return out + code + `\nexport { validate, parse, assert };\n`;
 }
 
 /**
@@ -1111,7 +1189,7 @@ function plugin() {
 			if (!type) return;
 
 			try {
-				var ast = ctx.parse(code, { lang: type });
+				var ast = program(ctx, code, type);
 			} catch {
 				return;
 			}
@@ -1157,8 +1235,12 @@ function plugin() {
 				for (let i = 0; i < session.loaded.length; i++) await ready(session, session.loaded[i]);
 			} while (session.changes !== before);
 
+			if (session.blind) return;
+
 			let edits: Edit[] = [];
+			let removed: [start: number, end: number][] = [];
 			let imports = new Map<string, string>();
+			let names = new Set<string>();
 
 			for (let i = 0; i < calls.length; i++) {
 				let [node, api, from] = calls[i];
@@ -1177,7 +1259,7 @@ function plugin() {
 				let hash = createHash('sha256')
 					.update(out + '\0' + (resolved ? resolved.id : from))
 					.digest('hex')
-					.slice(0, 8);
+					.slice(0, 16);
 				let label = arg.type === 'Identifier' ? arg.name : 'schema';
 				let entry = `${label}-${hash}`;
 
@@ -1185,21 +1267,33 @@ function plugin() {
 
 				let local = imports.get(entry);
 				if (!local) {
-					let n = imports.size;
-					while (code.includes((local = `__tschema${n}`))) n++;
+					let n = 0;
+					while (code.includes((local = `__tschema${n}`)) || names.has(local)) n++;
+					names.add(local);
 					imports.set(entry, local);
 				}
 
 				edits.push([node.start, input.start, `${local}.${api}(`]);
+				removed.push([node.start, input.start]);
 			}
 
 			if (!edits.length) return;
+
+			// keep imports that TS would now elide, so their side effects still run
+			for (let node of ast.body) {
+				if (node.type !== 'ImportDeclaration' || node.importKind === 'type') continue;
+				let refs = node.specifiers.flatMap((s) => mod.refs.get(s.local.name) || []);
+				if (refs.length && refs.every((p) => removed.some(([a, b]) => p >= a && p < b))) {
+					edits.push([node.start, node.end, `import ${JSON.stringify(node.source.value)};`]);
+				}
+			}
 
 			let text = '';
 			for (let [entry, local] of imports) {
 				text += `\nimport * as ${local} from ${JSON.stringify(PREFIX + entry)};`;
 			}
 			edits.push([code.length, code.length, text]);
+			edits.sort((a, b) => a[0] - b[0]);
 
 			return apply(id, code, edits);
 		},
