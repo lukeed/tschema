@@ -453,13 +453,17 @@ async function save(report: Report, name: string): Promise<string> {
 if (import.meta.main) {
 	let runs = Number(process.argv[2] || 200);
 	let base = Number(process.argv[3] || Date.now() % 1e9);
+	if (!Number.isSafeInteger(runs) || runs < 1 || !Number.isSafeInteger(base) || base < 0) {
+		console.error('Usage: bun scripts/fuzz.ts [runs >= 1] [seed >= 0]');
+		process.exit(2);
+	}
 	let compiled = 0;
 	console.log('> seeds %d..%d', base, base + runs - 1);
 	for (let i = 0; i < runs; i++) {
 		let report = await run(base + i);
 		if (report.compiled) compiled++;
 		if (!report.failed) continue;
-		console.log('\n! seed %d failed', report.seed);
+		console.log('\n! seed %d failed (replay: bun run fuzz 1 %d)', report.seed, report.seed);
 		console.log('  original %s', await save(report, 'original'));
 		let small = await shrink(report);
 		console.log('  shrunk   %s', await save(small, 'shrunk'));
