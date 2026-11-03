@@ -808,19 +808,13 @@ function _object<
 	if (properties) {
 		o.additionalProperties ||= false;
 
-		let k: keyof P;
-		let arr: (keyof P)[] = [];
-		for (k in properties) {
-			if (properties[k][OPTIONAL]) {
-				// NOTE: delete = deopt
-				properties[k][OPTIONAL] = undefined;
-			} else {
-				arr.push(k);
+		if (!o.required) {
+			let k: keyof P;
+			let arr: (keyof P)[] = [];
+			for (k in properties) {
+				if (!properties[k][OPTIONAL]) arr.push(k);
 			}
-		}
-
-		if (!o.required && arr.length > 0) {
-			o.required = arr;
+			if (arr.length > 0) o.required = arr;
 		}
 	}
 
