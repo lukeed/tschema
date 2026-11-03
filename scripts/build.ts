@@ -18,7 +18,10 @@ const ENTRIES: Record<string, string> = {
 	'plugins.ts': 'plugins',
 };
 
-const PEERS = ['rolldown', 'vite'];
+const PEERS: Record<string, string> = {
+	rolldown: '^1.0.0',
+	vite: '^8.0.0',
+};
 
 function bail(label: string, errors: unknown[]): never {
 	console.error('[%s] error(s)', label, errors);
@@ -63,9 +66,9 @@ let jsr = {
 		'./plugins': './plugins.ts',
 	},
 	imports: {
-		rolldown: 'npm:rolldown@' + config.devDependencies.rolldown,
-		'rolldown/': 'npm:/rolldown@' + config.devDependencies.rolldown + '/',
-		vite: 'npm:vite@' + config.devDependencies.vite,
+		rolldown: 'npm:rolldown@' + PEERS.rolldown,
+		'rolldown/': 'npm:/rolldown@' + PEERS.rolldown + '/',
+		vite: 'npm:vite@' + PEERS.vite,
 	},
 	publish: {
 		include: ['*.ts', 'license', 'readme.md'],
@@ -145,8 +148,10 @@ let pkg = {
 	engines: {
 		node: '>=22',
 	},
-	peerDependencies: Object.fromEntries(PEERS.map((name) => [name, config.devDependencies[name]])),
-	peerDependenciesMeta: Object.fromEntries(PEERS.map((name) => [name, { optional: true }])),
+	peerDependencies: PEERS,
+	peerDependenciesMeta: Object.fromEntries(
+		Object.keys(PEERS).map((name) => [name, { optional: true }]),
+	),
 	keywords: [
 		'infer json schema',
 		'json schema builder',
