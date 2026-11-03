@@ -146,6 +146,19 @@ describe('validate', () => {
 	it('should throw on unresolved references', () => {
 		expect(() => validate({ $ref: '#/$defs/missing' } as t.Type, 1)).toThrow('Unresolved $ref');
 	});
+
+	it('should ignore unknown formats named like Object members', () => {
+		for (let format of ['constructor', 'toString', '__proto__']) {
+			let schema: t.Type = JSON.parse(`{ "type": "string", "format": "${format}" }`);
+			expect(validate(schema, 'x').ok).toStrictEqual(true);
+		}
+	});
+
+	it('should compare constants with own __proto__ keys', () => {
+		let schema: t.Type = JSON.parse('{ "const": { "__proto__": 1 } }');
+		expect(validate(schema, {}).ok).toStrictEqual(false);
+		expect(validate(schema, JSON.parse('{ "__proto__": 1 }')).ok).toStrictEqual(true);
+	});
 });
 
 describe('parse', () => {
