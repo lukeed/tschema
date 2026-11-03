@@ -1047,6 +1047,21 @@ describe('transform', () => {
 		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
 	});
 
+	it('should not compile namespace aliases', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nnamespace N { export const S = t.string(); }\nimport S = N.S;\nparse(S, 1);`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should not compile with computed imports', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nlet path = './x';\nimport(path);\nparse(S, 1);`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+		let plain = code.replace('import(path);', '');
+		let out = await hook.handler.call(ctx, plain, '/x/main.ts');
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+	});
+
 	it('should unwrap parenthesized references', async () => {
 		let ctx = context(async () => null);
 		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nparse((S), 1);\n(S).minLength = 1;\nparse(S, 1);`;
