@@ -1668,6 +1668,12 @@ describe('transform', () => {
 		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
 	});
 
+	it('should treat exported import aliases as namespace values', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nnamespace M { export const Y = 1; }\nnamespace N { namespace S { export import X = M.Y; } export const run = (x: unknown) => parse(S as any, x); }`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
 	it('should handle deep expressions', async () => {
 		let ctx = context(async () => null);
 		let terms = Array.from({ length: 50_000 }, (_, i) => `'${i}'`).join(' + ');

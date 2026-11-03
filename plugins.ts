@@ -188,6 +188,7 @@ function instantiated(node: ESTree.TSModuleDeclaration | ESTree.TSGlobalDeclarat
 	return node.body.body.some((stmt) => {
 		let d = stmt.type === 'ExportNamedDeclaration' && stmt.declaration ? stmt.declaration : stmt;
 		if (d.type === 'TSModuleDeclaration') return instantiated(d);
+		if (d !== stmt && d.type === 'TSImportEqualsDeclaration') return true;
 		return (
 			d.type !== 'TSInterfaceDeclaration' &&
 			d.type !== 'TSTypeAliasDeclaration' &&
@@ -311,6 +312,8 @@ function reference(node: ESTree.Node, parent: ESTree.Node | undefined): boolean 
 			return parent.init === node;
 		case 'ExportSpecifier':
 			return parent.local === node;
+		case 'TSImportEqualsDeclaration':
+			return parent.id !== node;
 		case 'TSEnumMember':
 			return parent.initializer === node;
 		case 'ImportSpecifier':
@@ -609,9 +612,17 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		}
 	}
 
+	let vars = new Set<string>();
+	for (let node of ast.body) hoist(node, vars);
+	for (let name of vars) if (!mod.bindings.has(name)) mod.bindings.set(name, { kind: 'other' });
+
 	let roots: string[] = [];
 	walk(ast, [], (node, stack, path) => {
-		if (node.type === 'CallExpression' && !node.optional) {
+		if (
+			node.type === 'CallExpression' &&
+			!node.optional &&
+			!path.some((p) => p.type === 'TSEnumMember')
+		) {
 			let found = api(mod, node.callee, stack);
 			if (
 				found &&
