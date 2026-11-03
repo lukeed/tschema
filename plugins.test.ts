@@ -627,6 +627,28 @@ describe('rolldown (mutations)', () => {
 		`,
 	};
 
+	COMPILED['import require kept for side effects'] = {
+		input: { name: 'a' },
+		files: {
+			'other.ts': `
+				import * as t from 'tschema';
+				export const Other = t.object({ name: t.string(), email: t.optional(t.string()) });
+			`,
+			'patch.ts': `
+				import * as t from 'tschema';
+				import { Other } from './other';
+				export const User = t.object({ name: t.string() });
+				Other.required!.push('email');
+			`,
+		},
+		main: `
+			import P = require('./patch');
+			import { Other } from './other';
+			let O: any = Other;
+			export const check = (x: unknown) => [parse(P.User, x), parse(O, x)];
+		`,
+	};
+
 	COMPILED['lone surrogate key'] = {
 		input: { '\ud800': 'a' },
 		main: `
