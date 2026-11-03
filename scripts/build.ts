@@ -143,7 +143,7 @@ let pkg = {
 		url: 'https://lukeed.com',
 	},
 	engines: {
-		node: '>=14',
+		node: '>=22',
 	},
 	peerDependencies: Object.fromEntries(PEERS.map((name) => [name, config.devDependencies[name]])),
 	peerDependenciesMeta: Object.fromEntries(PEERS.map((name) => [name, { optional: true }])),
