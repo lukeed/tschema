@@ -1281,8 +1281,14 @@ function apply(id: string, code: string, edits: Edit[]) {
  */
 function plugin() {
 	let compiled = new Map<string, { code: string; importer: string }>();
+	/** The modules whose transform read each module, so an edit can redo them. */
+	let readers = new Map<string, Set<string>>();
 
 	return {
+		readers(file: string): Set<string> | undefined {
+			return readers.get(file);
+		},
+
 		resolveId(ctx: Context, source: string, importer: string | undefined) {
 			if (source === PREFIX + 'helpers') return VIRTUAL + 'helpers';
 			if (source.startsWith(PREFIX) && compiled.has(source.slice(PREFIX.length))) {
@@ -1341,6 +1347,13 @@ function plugin() {
 				}
 				for (let i = 0; i < session.loaded.length; i++) await ready(session, session.loaded[i]);
 			} while (session.changes !== before);
+
+			for (let m of session.loaded) {
+				if (m.id === id) continue;
+				let set = readers.get(m.id);
+				if (!set) readers.set(m.id, (set = new Set()));
+				set.add(id);
+			}
 
 			if (session.blind) return;
 
@@ -1451,6 +1464,15 @@ export function vite(): VitePlugin {
 		enforce: 'pre',
 		resolveId(source, importer) {
 			return hooks.resolveId(this, source, importer);
+		},
+		hotUpdate({ file, modules }) {
+			let keys = [file, ...modules.flatMap((m) => m.id || [])];
+			let ids = new Set(keys.flatMap((key) => [...(hooks.readers(key) || [])]));
+			if (!ids.size) return;
+			let graph = this.environment.moduleGraph;
+			let stale = [...ids].flatMap((id) => graph.getModuleById(id) || []);
+			for (let m of stale) graph.invalidateModule(m);
+			return [...modules, ...stale];
 		},
 		load(id) {
 			return hooks.load(id);
