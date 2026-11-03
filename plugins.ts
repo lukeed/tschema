@@ -198,16 +198,20 @@ function instantiated(node: ESTree.TSModuleDeclaration | ESTree.TSGlobalDeclarat
 	});
 }
 
-function hoist(node: unknown, out: Set<string>) {
-	if (!isNode(node)) return;
-	if (node.type === 'VariableDeclaration' && node.kind === 'var' && !node.declare) {
-		for (let d of node.declarations) declare(d.id, out);
-	}
-	if (/Function|StaticBlock|TSModuleDeclaration/.test(node.type)) return;
-	for (let value of Object.values(node)) {
-		if (Array.isArray(value)) {
-			for (let v of value) hoist(v, out);
-		} else hoist(value, out);
+function hoist(root: unknown, out: Set<string>) {
+	let todo = [root];
+	while (todo.length) {
+		let node = todo.pop();
+		if (!isNode(node)) continue;
+		if (node.type === 'VariableDeclaration' && node.kind === 'var' && !node.declare) {
+			for (let d of node.declarations) declare(d.id, out);
+		}
+		if (/Function|StaticBlock|TSModuleDeclaration/.test(node.type)) continue;
+		for (let value of Object.values(node)) {
+			if (Array.isArray(value)) {
+				for (let v of value) todo.push(v);
+			} else todo.push(value);
+		}
 	}
 }
 
@@ -261,28 +265,60 @@ function scope(node: ESTree.Node, parent: ESTree.Node | undefined): Set<string> 
 	}
 }
 
+/**
+ * @internal
+ * Visit each node in source order, with the scopes around it and its ancestors.
+ * Uses an explicit stack, so that deep expressions cannot overflow the call stack.
+ */
 function walk(
-	node: unknown,
-	stack: Set<string>[],
+	root: ESTree.Node,
 	visit: (node: ESTree.Node, stack: Set<string>[], path: ESTree.Node[]) => void,
-	path: ESTree.Node[] = [],
 ) {
-	if (!isNode(node) || (node.type.startsWith('TS') && !VALUES.has(node.type))) return;
-	visit(node, stack, path);
-	let names = scope(node, path[path.length - 1]);
-	let inner = names && names.size ? [...stack, names] : stack;
-	path.push(node);
-	if (node.type === 'SwitchStatement') {
-		walk(node.discriminant, stack, visit, path);
-		for (let c of node.cases) walk(c, inner, visit, path);
-	} else {
-		for (let value of Object.values(node)) {
+	let path: ESTree.Node[] = [];
+	let nodes: object[] = [root];
+	let stacks: Set<string>[][] = [[]];
+	let depths: number[] = [0];
+	while (nodes.length) {
+		let node = nodes.pop();
+		let stack = stacks.pop()!;
+		let depth = depths.pop()!;
+		if (!isNode(node) || (node.type.startsWith('TS') && !VALUES.has(node.type))) continue;
+		path.length = depth;
+		visit(node, stack, path);
+		let names = scope(node, path[depth - 1]);
+		let inner = names && names.size ? [...stack, names] : stack;
+		path.push(node);
+		let next = depth + 1;
+		if (node.type === 'SwitchStatement') {
+			for (let i = node.cases.length - 1; i >= 0; i--) {
+				nodes.push(node.cases[i]);
+				stacks.push(inner);
+				depths.push(next);
+			}
+			nodes.push(node.discriminant);
+			stacks.push(stack);
+			depths.push(next);
+			continue;
+		}
+		let values = Object.values(node);
+		for (let i = values.length - 1; i >= 0; i--) {
+			let value = values[i];
+			if (typeof value !== 'object' || value === null) continue;
 			if (Array.isArray(value)) {
-				for (let v of value) walk(v, inner, visit, path);
-			} else walk(value, inner, visit, path);
+				for (let j = value.length - 1; j >= 0; j--) {
+					let item = value[j];
+					if (typeof item !== 'object' || item === null) continue;
+					nodes.push(item);
+					stacks.push(inner);
+					depths.push(next);
+				}
+			} else {
+				nodes.push(value);
+				stacks.push(inner);
+				depths.push(next);
+			}
 		}
 	}
-	path.pop();
 }
 
 function shadowed(name: string, stack: Set<string>[]): boolean {
@@ -427,17 +463,24 @@ function usage(
 function plain(mod: Module, node: ESTree.ObjectExpression, stack: Set<string>[]): boolean {
 	let known = mod.plain.get(node);
 	if (known !== undefined) return known;
-	let code = (x: unknown): boolean => {
-		if (!isNode(x)) return false;
-		if (/Function|Class/.test(x.type)) return true;
-		if (x.type === 'CallExpression' && builder(mod, x.callee, stack) === 'recursive') {
-			let [id, define] = x.arguments;
-			return (
-				code(id) ||
-				(define && define.type === 'ArrowFunctionExpression' ? code(define.body) : code(define))
-			);
+	let code = (root: unknown): boolean => {
+		let todo = [root];
+		while (todo.length) {
+			let x = todo.pop();
+			if (!isNode(x)) continue;
+			if (/Function|Class/.test(x.type)) return true;
+			if (x.type === 'CallExpression' && builder(mod, x.callee, stack) === 'recursive') {
+				let [id, define] = x.arguments;
+				todo.push(id, define && define.type === 'ArrowFunctionExpression' ? define.body : define);
+				continue;
+			}
+			for (let v of Object.values(x)) {
+				if (Array.isArray(v)) {
+					for (let item of v) todo.push(item);
+				} else todo.push(v);
+			}
 		}
-		return Object.values(x).some((v) => (Array.isArray(v) ? v.some(code) : code(v)));
+		return false;
 	};
 	let ok = node.properties.every((prop) => {
 		if (prop.type === 'SpreadElement') return !code(prop.argument);
@@ -617,7 +660,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 	for (let name of vars) if (!mod.bindings.has(name)) mod.bindings.set(name, { kind: 'other' });
 
 	let roots: string[] = [];
-	walk(ast, [], (node, stack, path) => {
+	walk(ast, (node, stack, path) => {
 		if (
 			node.type === 'CallExpression' &&
 			!node.optional &&
@@ -1248,7 +1291,7 @@ function plugin() {
 					try {
 						schemas.push(await evaluate(session, mod, node.arguments[0], new Map(), stack));
 					} catch (err) {
-						if (!(err instanceof Dynamic)) throw err;
+						if (!(err instanceof Dynamic) && !(err instanceof RangeError)) throw err;
 						schemas.push(undefined);
 					}
 				}
