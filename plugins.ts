@@ -66,6 +66,8 @@ type Module = {
 	refs: Map<string, number[]>;
 	/** The `tschema/validate` calls that the plugin may compile. */
 	calls: Call[];
+	/** The escaped imports that are only called, never handed on. */
+	invoked: Set<string>;
 	/** The {@link plain} result for each object literal. */
 	plain: WeakMap<ESTree.Node, boolean>;
 	values: Map<string, Promise<unknown>>;
@@ -98,6 +100,19 @@ type Call = [node: ESTree.CallExpression, api: string, source: string, stack: Se
  * Thrown when an expression cannot be evaluated at build time.
  */
 class Dynamic extends Error {}
+
+/**
+ * @internal
+ * Thrown for a local module that the plugin cannot read, such as a virtual or `.vue` module.
+ * A schema read through it is dynamic. A value handed into it makes the session blind.
+ */
+class Foreign extends Dynamic {}
+
+/**
+ * @internal
+ * The {@link usage} of a binding that is only called, so its own value does not change.
+ */
+const CALL = Symbol('call');
 
 /**
  * @internal
@@ -377,7 +392,7 @@ function usage(
 	node: ESTree.Node,
 	path: ESTree.Node[],
 	stack: Set<string>[],
-): boolean | string {
+): boolean | string | typeof CALL {
 	let child = node;
 	for (let i = path.length - 1; ; i--) {
 		let p = path[i];
@@ -419,8 +434,10 @@ function usage(
 				);
 			case 'UnaryExpression':
 				return !(p.operator === 'typeof' || p.operator === '!' || p.operator === 'void');
+			case 'NewExpression':
+				return p.callee === node ? CALL : true;
 			case 'CallExpression': {
-				if (p.callee === child) return true;
+				if (p.callee === child) return child === node ? CALL : true;
 				let id = p.callee.type === 'MemberExpression' ? p.callee.object : p.callee;
 				let b = id.type === 'Identifier' && !shadowed(id.name, stack) && mod.bindings.get(id.name);
 				if (b && b.kind === 'import' && VALIDATE.has(b.source)) {
@@ -559,6 +576,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		pending: new Set(),
 		refs: new Map(),
 		calls: [],
+		invoked: new Set(),
 		plain: new WeakMap(),
 		values: new Map(),
 	};
@@ -660,6 +678,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 	for (let name of vars) if (!mod.bindings.has(name)) mod.bindings.set(name, { kind: 'other' });
 
 	let roots: string[] = [];
+	let called: string[] = [];
 	walk(ast, (node, stack, path) => {
 		if (
 			node.type === 'CallExpression' &&
@@ -714,12 +733,14 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			refs.push(node.start);
 		}
 		if (node.type === 'JSXIdentifier') {
-			roots.push(node.name);
+			called.push(node.name);
 			return;
 		}
 		if (b.kind === 'other') return;
 		let use = usage(mod, node, path, stack);
-		if (use === true) {
+		if (use === CALL) {
+			called.push(node.name);
+		} else if (use === true) {
 			roots.push(node.name);
 		} else if (use) {
 			let deps = mod.deps.get(use);
@@ -730,7 +751,16 @@ function analyze(id: string, ast: ESTree.Program): Module {
 
 	if (mod.opaque) mod.escaped.add('*');
 	if (mod.escaped.has('*')) roots.push(...mod.bindings.keys());
-	for (let name of roots) escape(mod, name);
+	for (let name of [...roots, ...called]) escape(mod, name);
+
+	// a call hands on what the callee returns, so only the callee itself stays invoked
+	let handed = new Set(roots);
+	let queue = [...roots, ...called.flatMap((name) => [...(mod.deps.get(name) || [])])];
+	for (let name of queue) {
+		handed.add(name);
+		for (let dep of mod.deps.get(name) || []) if (!handed.has(dep)) queue.push(dep);
+	}
+	for (let name of called) if (!handed.has(name)) mod.invoked.add(name);
 
 	return mod;
 }
@@ -745,7 +775,9 @@ function load(s: Session, id: string): Promise<Module> {
 	if (!mod) {
 		mod = (async () => {
 			let type = lang(id);
-			if (!type || id.includes('?')) throw new Dynamic();
+			if (!type || id.includes('?')) {
+				throw id.includes('/node_modules/') ? new Dynamic() : new Foreign();
+			}
 			try {
 				var code = await readFile(id, 'utf8');
 				var ast = program(s.ctx, code, type);
@@ -772,18 +804,25 @@ function program(ctx: Context, code: string, type: 'js' | 'jsx' | 'ts' | 'tsx'):
 	}
 }
 
-async function attempt(fn: () => Promise<unknown>) {
+/**
+ * @internal
+ * Run a step that marks escapes. A module that cannot be read makes the session blind, unless the
+ * escape only called into it (`lenient`), since its own code is out of reach anyway.
+ */
+async function attempt(s: Session, fn: () => Promise<unknown>, lenient = false) {
 	try {
 		await fn();
 	} catch (err) {
 		if (!(err instanceof Dynamic)) throw err;
+		if (err instanceof Foreign && !lenient) s.blind = true;
 	}
 }
 
 async function target(s: Session, mod: Module, source: string): Promise<Module> {
 	if (CORE.has(source) || VALIDATE.has(source)) throw new Dynamic();
 	let resolved = await s.ctx.resolve(source, mod.id);
-	if (!resolved || resolved.external || resolved.id.startsWith('\0')) throw new Dynamic();
+	if (!resolved || resolved.external) throw new Dynamic();
+	if (resolved.id.startsWith('\0')) throw new Foreign();
 	return load(s, resolved.id);
 }
 
@@ -809,13 +848,16 @@ async function locate(
 	}
 	if (name === 'default') throw new Dynamic();
 	let hits: [Module, string | undefined][] = [];
+	let foreign = false;
 	for (let star of m.stars) {
 		try {
 			hits.push(await locate(s, m, star, name, seen));
 		} catch (err) {
 			if (!(err instanceof Dynamic)) throw err;
+			if (err instanceof Foreign) foreign = true;
 		}
 	}
+	if (foreign) throw new Foreign();
 	// an ambiguous star export is not exported at all
 	if (!hits.length || hits.some(([hm, hl]) => hm !== hits[0][0] || hl !== hits[0][1])) {
 		throw new Dynamic();
@@ -835,6 +877,7 @@ async function exported(s: Session, mod: Module, source: string, name: string): 
  */
 async function mark(s: Session, mod: Module, name: string | undefined) {
 	if (name === undefined) return taint(s, mod);
+	mod.invoked.delete(name);
 	let added = escape(mod, name);
 	s.changes += added.length;
 	await settle(s, mod, added);
@@ -849,7 +892,8 @@ async function settle(s: Session, mod: Module, names: Iterable<string>) {
 		let b = mod.bindings.get(name);
 		if (!b || b.kind !== 'import') continue;
 		let { source } = b;
-		await attempt(async () => mark(s, ...(await locate(s, mod, source, b.name))));
+		let lenient = mod.invoked.has(name);
+		await attempt(s, async () => mark(s, ...(await locate(s, mod, source, b.name))), lenient);
 	}
 }
 
@@ -863,13 +907,13 @@ async function taint(s: Session, mod: Module) {
 	mod.escaped.add('*');
 	s.changes++;
 	for (let entry of mod.exports.values()) {
-		await attempt(async () => {
+		await attempt(s, async () => {
 			if ('local' in entry) return mark(s, mod, entry.local);
 			await mark(s, ...(await locate(s, mod, entry.source, entry.name)));
 		});
 	}
 	for (let star of mod.stars) {
-		await attempt(async () => taint(s, await target(s, mod, star)));
+		await attempt(s, async () => taint(s, await target(s, mod, star)));
 	}
 }
 
@@ -878,7 +922,7 @@ function ready(s: Session, mod: Module): Promise<void> {
 		if (mod.opaque) s.blind = true;
 		await settle(s, mod, [...mod.escaped]);
 		for (let source of mod.dynamic) {
-			await attempt(async () => taint(s, await target(s, mod, source)));
+			await attempt(s, async () => taint(s, await target(s, mod, source)), true);
 		}
 	})());
 }
