@@ -1344,10 +1344,23 @@ function plugin() {
 
 			// TS may now elide an import, so keep its module running with a side-effect import
 			for (let node of ast.body) {
-				if (node.type !== 'ImportDeclaration' || node.importKind === 'type') continue;
-				let refs = node.specifiers.flatMap((s) => mod.refs.get(s.local.name) || []);
+				let names: string[];
+				let source: string;
+				if (node.type === 'ImportDeclaration' && node.importKind !== 'type') {
+					names = node.specifiers.map((s) => s.local.name);
+					source = code.slice(node.source.start, node.end).replace(/;?\s*$/, '');
+				} else if (
+					node.type === 'TSImportEqualsDeclaration' &&
+					node.importKind !== 'type' &&
+					node.moduleReference.type === 'TSExternalModuleReference'
+				) {
+					names = [node.id.name];
+					source = JSON.stringify(node.moduleReference.expression.value);
+				} else {
+					continue;
+				}
+				let refs = names.flatMap((name) => mod.refs.get(name) || []);
 				if (refs.some((p) => removed.some(([a, b]) => p >= a && p < b))) {
-					let source = code.slice(node.source.start, node.end).replace(/;?\s*$/, '');
 					edits.push([node.end, node.end, `;import ${source};`]);
 				}
 			}
