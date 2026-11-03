@@ -618,14 +618,21 @@ describe('Object', () => {
 		});
 	});
 
-	it('should clear Optional markers with custom "required"', () => {
+	it('should keep Optional markers with custom "required"', () => {
 		let age = t.optional(t.integer());
 		let output = t.object({ name: t.string(), age }, { required: ['age'] });
 
 		expect(output.required).toStrictEqual(['age']);
-		expect(Object.getOwnPropertySymbols(age).map((k) => Reflect.get(age, k))).toStrictEqual([
-			undefined,
-		]);
+		expect(t.object({ name: t.string(), age }).required).toStrictEqual(['name']);
+	});
+
+	it('should reuse an Optional field', () => {
+		let age = t.optional(t.integer());
+		let a = t.object({ name: t.string(), age });
+		let b = t.object({ age });
+
+		expect(a.required).toStrictEqual(['name']);
+		expect(b.required).toBe(undefined);
 	});
 
 	it('should build "required" from non-Optionals', () => {
