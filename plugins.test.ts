@@ -58,11 +58,15 @@ type Output = {
 	mod: Record<string, (input: unknown) => unknown>;
 };
 
-async function compile(files: Record<string, string>, entry = 'main.ts'): Promise<Output> {
+async function compile(
+	files: Record<string, string>,
+	entry = 'main.ts',
+	aot = true,
+): Promise<Output> {
 	let dir = await project(files);
 	let b = await bundle({
 		input: join(dir, entry),
-		plugins: [rolldown()],
+		plugins: aot ? [rolldown()] : [],
 		resolve: { alias: ALIAS },
 		logLevel: 'silent',
 	});
@@ -478,6 +482,284 @@ describe('rolldown (expressions)', () => {
 	});
 });
 
+describe('rolldown (mutations)', () => {
+	const SHARED = `
+		import * as t from 'tschema';
+
+		export const User = t.object({
+			name: t.string({ minLength: 1 }),
+			email: t.optional(t.string({ format: 'email' })),
+		});
+
+		export const Post = t.object({ title: t.string(), author: User });
+	`;
+
+	const HEAD = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\n`;
+
+	type Case = {
+		input: unknown;
+		main: string;
+		files?: Record<string, string>;
+	};
+
+	async function check(c: Case) {
+		let files = { 'schemas.ts': SHARED, ...c.files, 'main.ts': HEAD + c.main };
+		let [runtime, aot] = await Promise.all([compile(files, 'main.ts', false), compile(files)]);
+		return {
+			compiled: /tschema:\w+-[\da-f]{8}/.test(aot.code),
+			runtime: runtime.mod.check(c.input),
+			aot: aot.mod.check(c.input),
+		};
+	}
+
+	const COMPILED: Record<string, Case> = {
+		'plain import': {
+			input: { name: '' },
+			main: `
+				import { User } from './schemas';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		composition: {
+			input: { title: 'x', author: { name: '' } },
+			main: `
+				import { Post } from './schemas';
+				export const check = (x: unknown) => parse(Post, x);
+			`,
+		},
+		registry: {
+			input: { name: '' },
+			main: `
+				import { Post, User } from './schemas';
+				const Schemas = { User, Post };
+				export const check = (x: unknown) => parse(Schemas.User, x);
+			`,
+		},
+		'extend by spread': {
+			input: { name: 'a', password: '12345678' },
+			main: `
+				import { User } from './schemas';
+				const Signup = t.object({ ...User.properties, password: t.string({ minLength: 8 }) });
+				export const check = (x: unknown) => parse(Signup, x);
+			`,
+		},
+		'type queries': {
+			input: { name: '' },
+			main: `
+				import { User } from './schemas';
+				type Shape = t.Infer<typeof User>;
+				const read = (x: unknown) => x as typeof User;
+				export const check = (x: unknown): Shape | undefined => parse(User, x);
+			`,
+		},
+		'read-only uses': {
+			input: { name: '' },
+			main: `
+				import { User } from './schemas';
+				const named = User === null ? 'none' : typeof User;
+				const Lazy = () => User;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'recursive builder': {
+			input: { user: { name: '' }, replies: [] },
+			main: `
+				import { User } from './schemas';
+				const Thread = t.recursive('Thread', (self) => t.object({ user: User, replies: t.array(self) }));
+				export const check = (x: unknown) => parse(Thread, x);
+			`,
+		},
+	};
+
+	const RUNTIME: Record<string, Case> = {
+		'required.push': {
+			input: { name: 'a' },
+			main: `
+				const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+				User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'Object.assign on properties': {
+			input: { name: 'a', role: 'admin' },
+			main: `
+				const User = t.object({ name: t.string() });
+				Object.assign(User.properties!, { role: t.enum(['admin', 'member']) });
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'non-null assertion': {
+			input: { port: 80 },
+			main: `
+				const Config = t.object({ port: t.integer() });
+				Config.properties!.port.minimum = 1024;
+				export const check = (x: unknown) => parse(Config, x);
+			`,
+		},
+		'type assertion': {
+			input: { port: 80 },
+			main: `
+				const Config = t.object({ port: t.integer() });
+				(Config as { properties: { port: { minimum?: number } } }).properties.port.minimum = 1024;
+				export const check = (x: unknown) => parse(Config, x);
+			`,
+		},
+		alias: {
+			input: { name: 'a', extra: 1 },
+			main: `
+				const User = t.object({ name: t.string() });
+				const Loose: { additionalProperties?: unknown } = User;
+				Loose.additionalProperties = true;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		destructuring: {
+			input: { name: 'a', extra: 1 },
+			main: `
+				const User = t.object({ name: t.string() });
+				const { properties } = User;
+				Object.assign(properties!, { extra: t.integer() });
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'via parent': {
+			input: { name: 'ab' },
+			main: `
+				const User = t.object({ name: t.string() });
+				const Post = t.object({ author: User });
+				Post.properties!.author.properties!.name.minLength = 3;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'via imported parent': {
+			input: { name: 'a' },
+			main: `
+				import { Post, User } from './schemas';
+				Post.properties!.author.properties!.name.minLength = 3;
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'via namespace': {
+			input: { name: 'a' },
+			main: `
+				import * as schemas from './schemas';
+				import { User } from './schemas';
+				schemas.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'via re-export': {
+			input: { name: 'a' },
+			files: { 'index.ts': `export * from './schemas';` },
+			main: `
+				import { User as Base } from './schemas';
+				import { User } from './index';
+				Base.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'held by a parent': {
+			input: { author: { name: 'a' } },
+			main: `
+				const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+				const Post = t.object({ author: User });
+				User.required!.push('email');
+				export const check = (x: unknown) => parse(Post, x);
+			`,
+		},
+		'held by an imported parent': {
+			input: { title: 'x', author: { name: 'a' } },
+			main: `
+				import { Post, User } from './schemas';
+				User.required!.push('email');
+				export const check = (x: unknown) => parse(Post, x);
+			`,
+		},
+		'via namespace named re-export': {
+			input: { name: 'a' },
+			files: { 'index.ts': `export { User } from './schemas';` },
+			main: `
+				import * as api from './index';
+				import { User } from './schemas';
+				api.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'via namespace star re-export': {
+			input: { name: 'a' },
+			files: { 'index.ts': `export * from './schemas';` },
+			main: `
+				import * as api from './index';
+				import { User } from './schemas';
+				api.User.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'in the defining module': {
+			input: { name: 'a' },
+			files: {
+				'user.ts': `
+					import * as t from 'tschema';
+					export const User = t.object({ name: t.string(), email: t.optional(t.string()) });
+					User.required!.push('email');
+				`,
+			},
+			main: `
+				import { User } from './user';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+		'own function': {
+			input: { name: '' },
+			main: `
+				import { User } from './schemas';
+				const routes: { path: string; schema: t.Type }[] = [];
+				function route(path: string, schema: t.Type) {
+					routes.push({ path, schema });
+				}
+				route('/users', User);
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		},
+	};
+
+	for (let [name, c] of Object.entries(COMPILED)) {
+		it(`should compile: ${name}`, async () => {
+			let out = await check(c);
+			expect(out.compiled).toBe(true);
+			expect(out.aot).toStrictEqual(out.runtime);
+		});
+	}
+
+	for (let [name, c] of Object.entries(RUNTIME)) {
+		it(`should use the runtime: ${name}`, async () => {
+			let out = await check(c);
+			expect(out.compiled).toBe(false);
+			expect(out.aot).toStrictEqual(out.runtime);
+		});
+	}
+
+	it('should not see changes in other modules', async () => {
+		let out = await check({
+			input: { name: 'a' },
+			files: {
+				'patch.ts': `
+					import { User } from './schemas';
+					User.required!.push('email');
+				`,
+			},
+			main: `
+				import './patch';
+				import { User } from './schemas';
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		});
+		expect(out.compiled).toBe(true);
+		expect(out.runtime).toBe(undefined);
+		expect(out.aot).toStrictEqual({ name: 'a' });
+	});
+});
+
 describe('transform', () => {
 	let dir: string;
 	let hook = rolldown().transform as { handler: Function };
@@ -512,6 +794,15 @@ describe('transform', () => {
 		let ctx = context(async () => null);
 		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nparse((t.string()), 1);`;
 		let out = await hook.handler.call(ctx, code, '/x/main.ts');
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+	});
+
+	it('should unwrap parenthesized references', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nparse((S), 1);\n(S).minLength = 1;\nparse(S, 1);`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+		let safe = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nparse((S), 1);`;
+		let out = await hook.handler.call(ctx, safe, '/x/main.ts');
 		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
 	});
 
