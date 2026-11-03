@@ -99,7 +99,7 @@ jobs:
         run: |
           bun install --frozen-lockfile
           VERSION=${GITHUB_REF#refs/tags/v}
-          bun run build $VERSION
+          bun run build "$VERSION"
 
       - name: 'Publish → jsr'
         if: ${{ !contains(github.ref, '-next.') }}
