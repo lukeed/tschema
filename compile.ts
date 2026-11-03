@@ -695,6 +695,7 @@ function regex(c: Context, pattern: string): string {
 		new RegExp(pattern, 'u');
 		return hoist(c, `new RegExp(${JSON.stringify(pattern)},"u")`);
 	} catch {
+		new RegExp(pattern);
 		return hoist(c, `new RegExp(${JSON.stringify(pattern)})`);
 	}
 }
