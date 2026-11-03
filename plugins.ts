@@ -54,7 +54,12 @@ type Module = {
 	escaped: Set<string>;
 	/** The bindings held by each top-level `const` value. */
 	deps: Map<string, Set<string>>;
+	/** The sources of `import()` and `require()` calls. */
+	dynamic: string[];
+	tainted?: true;
 	settled?: Promise<void>;
+	/** The bindings being evaluated, to stop at a cycle. */
+	pending: Set<string>;
 	values: Map<string, Promise<unknown>>;
 };
 
@@ -65,6 +70,9 @@ type Module = {
 type Session = {
 	ctx: Context;
 	modules: Map<string, Promise<Module>>;
+	loaded: Module[];
+	/** The number of bindings marked as escaped by other modules. */
+	changes: number;
 };
 
 type Edit = [start: number, end: number, text: string];
@@ -433,6 +441,8 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		stars: [],
 		escaped: new Set(),
 		deps: new Map(),
+		dynamic: [],
+		pending: new Set(),
 		values: new Map(),
 	};
 
@@ -456,7 +466,12 @@ function analyze(id: string, ast: ESTree.Program): Module {
 		}
 
 		if (node.type === 'ExportAllDeclaration') {
-			if (node.exportKind !== 'type' && !node.exported) mod.stars.push(node.source.value);
+			if (node.exportKind === 'type') continue;
+			if (node.exported) {
+				mod.exports.set(nameOf(node.exported), { source: node.source.value, name: '*' });
+			} else {
+				mod.stars.push(node.source.value);
+			}
 			continue;
 		}
 
@@ -496,7 +511,16 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			node = node.declaration;
 		}
 
-		if (node.type === 'VariableDeclaration') {
+		if (node.type === 'TSImportEqualsDeclaration') {
+			if (node.importKind === 'type') continue;
+			let ref = node.moduleReference;
+			mod.bindings.set(
+				node.id.name,
+				ref.type === 'TSExternalModuleReference'
+					? { kind: 'import', source: ref.expression.value, name: '*' }
+					: { kind: 'other' },
+			);
+		} else if (node.type === 'VariableDeclaration' && !node.declare) {
 			for (let d of node.declarations) {
 				if (node.kind === 'const' && d.id.type === 'Identifier' && d.init) {
 					mod.bindings.set(d.id.name, { kind: 'const', init: d.init });
@@ -516,6 +540,25 @@ function analyze(id: string, ast: ESTree.Program): Module {
 
 	let roots: string[] = [];
 	walk(ast, [], (node, stack, path) => {
+		let callee =
+			node.type === 'CallExpression' &&
+			node.callee.type === 'Identifier' &&
+			!shadowed(node.callee.name, stack) &&
+			!mod.bindings.has(node.callee.name)
+				? node.callee.name
+				: '';
+		if (callee === 'eval') mod.escaped.add('*');
+		let source =
+			node.type === 'ImportExpression'
+				? node.source
+				: callee === 'require' && node.type === 'CallExpression'
+					? node.arguments[0]
+					: undefined;
+		if (source && source.type === 'Literal' && typeof source.value === 'string') {
+			mod.dynamic.push(source.value);
+		} else if (source) {
+			mod.escaped.add('*');
+		}
 		if (node.type !== 'Identifier' || shadowed(node.name, stack)) return;
 		let b = mod.bindings.get(node.name);
 		if (!b || b.kind === 'other' || !reference(node, path[path.length - 1])) return;
@@ -541,7 +584,9 @@ function load(s: Session, id: string): Promise<Module> {
 			id,
 			(mod = readFile(id.replace(/[?#].*$/, ''), 'utf8').then((code) => {
 				s.ctx.addWatchFile(id);
-				return analyze(id, s.ctx.parse(code, { lang: lang(id) || 'js' }));
+				let m = analyze(id, s.ctx.parse(code, { lang: lang(id) || 'js' }));
+				s.loaded.push(m);
+				return m;
 			})),
 		);
 	}
@@ -574,15 +619,21 @@ async function locate(
 	mod: Module,
 	source: string,
 	name: string,
+	seen = new Set<string>(),
 ): Promise<[Module, string]> {
 	let m = await target(s, mod, source);
-	if (m.escaped.has('*')) throw new Dynamic();
+	if (name === '*') return [m, '*'];
+	let key = m.id + '\0' + name;
+	if (seen.has(key) || m.escaped.has('*')) throw new Dynamic();
+	seen.add(key);
 	let entry = m.exports.get(name);
-	if (entry) return 'local' in entry ? [m, entry.local] : locate(s, m, entry.source, entry.name);
+	if (entry) {
+		return 'local' in entry ? [m, entry.local] : locate(s, m, entry.source, entry.name, seen);
+	}
 	if (name !== 'default') {
 		for (let star of m.stars) {
 			try {
-				return await locate(s, m, star, name);
+				return await locate(s, m, star, name, seen);
 			} catch (err) {
 				if (!(err instanceof Dynamic)) throw err;
 			}
@@ -598,33 +649,41 @@ async function exported(s: Session, mod: Module, source: string, name: string): 
 
 /**
  * @internal
- * Mark the escaped `names` as escaped in the modules that define them.
+ * Mark a binding as escaped, or every binding for `*`, and push the change to its sources.
+ */
+async function mark(s: Session, mod: Module, name: string) {
+	if (name === '*') return taint(s, mod);
+	let added = escape(mod, name);
+	s.changes += added.length;
+	await settle(s, mod, added);
+}
+
+/**
+ * @internal
+ * Mark the escaped imports among `names` as escaped in the modules that define them.
  */
 async function settle(s: Session, mod: Module, names: Iterable<string>) {
 	for (let name of names) {
 		let b = mod.bindings.get(name);
 		if (!b || b.kind !== 'import') continue;
 		let { source } = b;
-		await attempt(async () => {
-			if (b.name === '*') return taint(s, await target(s, mod, source));
-			let [m, local] = await locate(s, mod, source, b.name);
-			await settle(s, m, escape(m, local));
-		});
+		await attempt(async () => mark(s, ...(await locate(s, mod, source, b.name))));
 	}
 }
 
 /**
  * @internal
- * Mark every export of a module as escaped, for a namespace import that escapes.
+ * Mark every binding and export of a module as escaped, for a namespace that escapes.
  */
 async function taint(s: Session, mod: Module) {
-	if (mod.escaped.has('*')) return;
+	if (mod.tainted) return;
+	mod.tainted = true;
 	mod.escaped.add('*');
+	s.changes++;
 	for (let entry of mod.exports.values()) {
 		await attempt(async () => {
-			if ('local' in entry) return settle(s, mod, escape(mod, entry.local));
-			let [m, local] = await locate(s, mod, entry.source, entry.name);
-			await settle(s, m, escape(m, local));
+			if ('local' in entry) return mark(s, mod, entry.local);
+			await mark(s, ...(await locate(s, mod, entry.source, entry.name)));
 		});
 	}
 	for (let star of mod.stars) {
@@ -633,13 +692,20 @@ async function taint(s: Session, mod: Module) {
 }
 
 function ready(s: Session, mod: Module): Promise<void> {
-	return (mod.settled ||= settle(s, mod, [...mod.escaped]));
+	return (mod.settled ||= (async () => {
+		await settle(s, mod, [...mod.escaped]);
+		for (let source of mod.dynamic) {
+			await attempt(async () => taint(s, await target(s, mod, source)));
+		}
+	})());
 }
 
 function binding(s: Session, mod: Module, name: string): Promise<unknown> {
 	let value = mod.values.get(name);
-	if (!value) {
-		value = ready(s, mod).then(() => {
+	if (value) return mod.pending.has(name) ? Promise.reject(new Dynamic()) : value;
+	mod.pending.add(name);
+	value = ready(s, mod)
+		.then(() => {
 			let b = mod.bindings.get(name);
 			if (!b || b.kind === 'other' || mod.escaped.has(name) || mod.escaped.has('*')) {
 				throw new Dynamic();
@@ -647,9 +713,9 @@ function binding(s: Session, mod: Module, name: string): Promise<unknown> {
 			if (b.kind === 'const') return evaluate(s, mod, b.init, new Map(), []);
 			if (b.name === '*') throw new Dynamic();
 			return exported(s, mod, b.source, b.name);
-		});
-		mod.values.set(name, value);
-	}
+		})
+		.finally(() => mod.pending.delete(name));
+	mod.values.set(name, value);
 	return value;
 }
 
@@ -1006,7 +1072,12 @@ function plugin() {
 			}
 
 			let mod = analyze(id, ast);
-			let session: Session = { ctx, modules: new Map([[id, Promise.resolve(mod)]]) };
+			let session: Session = {
+				ctx,
+				modules: new Map([[id, Promise.resolve(mod)]]),
+				loaded: [mod],
+				changes: 0,
+			};
 
 			let calls: [ESTree.CallExpression, string, string, Set<string>[]][] = [];
 			walk(ast, [], (node, stack) => {
@@ -1021,31 +1092,46 @@ function plugin() {
 				}
 			});
 
-			if (calls.length) await ready(session, mod);
+			if (!calls.length) return;
+			await ready(session, mod);
+
+			let schemas: unknown[];
+			let before: number;
+			do {
+				before = session.changes;
+				for (let m of session.loaded) m.values.clear();
+				schemas = [];
+				for (let [node, , , stack] of calls) {
+					try {
+						schemas.push(await evaluate(session, mod, node.arguments[0], new Map(), stack));
+					} catch (err) {
+						if (!(err instanceof Dynamic)) throw err;
+						schemas.push(undefined);
+					}
+				}
+			} while (session.changes !== before);
 
 			let edits: Edit[] = [];
 			let imports = new Map<string, string>();
 
-			for (let [node, api, from, stack] of calls) {
+			for (let i = 0; i < calls.length; i++) {
+				let [node, api, from] = calls[i];
 				let [arg, input] = node.arguments;
-				try {
-					var schema = await evaluate(session, mod, arg, new Map(), stack);
-				} catch (err) {
-					if (err instanceof Dynamic) continue;
-					throw err;
-				}
-
+				let schema = schemas[i];
 				if (typeof schema !== 'object' || schema === null) continue;
 
-				let json = JSON.stringify(schema);
-				let hash = createHash('sha256')
-					.update(from + json)
-					.digest('hex')
-					.slice(0, 8);
+				try {
+					var out = emit(schema, from);
+				} catch {
+					// the runtime compiler throws the same error when the call runs
+					continue;
+				}
+
+				let hash = createHash('sha256').update(out).digest('hex').slice(0, 8);
 				let label = arg.type === 'Identifier' ? arg.name : 'schema';
 				let entry = `${label}-${hash}`;
 
-				if (!compiled.has(entry)) compiled.set(entry, { code: emit(schema, from), importer: id });
+				if (!compiled.has(entry)) compiled.set(entry, { code: out, importer: id });
 
 				let local = imports.get(entry);
 				if (!local) {
