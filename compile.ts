@@ -610,7 +610,9 @@ function hoist(c: Context, expr: string): string {
 
 function quote(text: string): string {
 	// oxlint-disable-next-line no-control-regex
-	return /[\\"\x00-\x1f\u2028\u2029]/.test(text) ? JSON.stringify(text) : '"' + text + '"';
+	return /[\\"\x00-\x1f\u2028\u2029\ud800-\udfff]/.test(text)
+		? JSON.stringify(text)
+		: '"' + text + '"';
 }
 
 function escape(key: string): string {
@@ -687,7 +689,7 @@ function differs(c: Context, x: string, list: unknown[]): string {
 		return list.length ? list.map((v) => `${x}!==${JSON.stringify(v)}`).join('&&') : 'true';
 	}
 	if (simple) return `!${hoist(c, `new Set(${JSON.stringify(list)})`)}.has(${x})`;
-	return `!${use(c, 'in')}(${x},${hoist(c, JSON.stringify(list))})`;
+	return `!${use(c, 'in')}(${x},${hoist(c, `JSON.parse(${quote(JSON.stringify(list))})`)})`;
 }
 
 function regex(c: Context, pattern: string): string {
@@ -876,7 +878,7 @@ function gen(c: Context, s: Schema, x: string, ip: Segment[], kp: string, m: Mod
 		str += rule(`!${regex(c, v)}.test(${x})`, 'pattern', `must match pattern "${v}"`);
 	}
 
-	if (typeof (v = s.format) === 'string' && (sub = FORMATS[v])) {
+	if (typeof (v = s.format) === 'string' && Object.hasOwn(FORMATS, v) && (sub = FORMATS[v])) {
 		sub =
 			sub[0] === '/'
 				? `${hoist(c, sub)}.test(${x})`
