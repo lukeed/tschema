@@ -619,6 +619,89 @@ describe('rolldown (mutations)', () => {
 		`,
 	};
 
+	COMPILED['import require alias'] = {
+		input: { name: '' },
+		main: `
+			import S = require('./schemas');
+			export const check = (x: unknown) => parse(S.User, x);
+		`,
+	};
+
+	COMPILED['lone surrogate key'] = {
+		input: { '\ud800': 'a' },
+		main: `
+			export const check = (x: unknown) => parse(t.object({ '\\ud800': t.string() }), x);
+		`,
+	};
+
+	COMPILED['decorator metadata'] = {
+		input: { name: 'a' },
+		options: { transform: { decorator: { legacy: true, emitDecoratorMetadata: true } } },
+		files: {
+			'users.ts': `
+				import * as t from 'tschema';
+				export class UsersService {}
+				export const CreateUser = t.object({ name: t.string() });
+			`,
+		},
+		main: `
+			import { UsersService, CreateUser } from './users';
+			const deps: string[] = [];
+			(Reflect as any).metadata = (k: string, v: any) => () => { if (k === 'design:paramtypes') deps.push(...v.map((d: any) => d.name)); };
+			const Injectable = (): ClassDecorator => () => {};
+			@Injectable()
+			class UsersController {
+				constructor(private users: UsersService) {}
+				create(body: unknown) { return parse(CreateUser, body); }
+			}
+			export const check = (x: unknown) => [deps, new UsersController(null as any).create(x)];
+		`,
+	};
+
+	COMPILED['jsx factory import'] = {
+		input: 'a',
+		files: {
+			'lib.ts': `
+				import * as t from 'tschema';
+				export function h(tag: string) { return { tag }; }
+				export const S = t.string();
+			`,
+			'app.tsx': `
+				/** @jsxRuntime classic */
+				/** @jsx h */
+				import { parse } from 'tschema/validate';
+				import { h, S } from './lib';
+				export const check = (x: unknown) => [parse(S, x), <div />];
+			`,
+		},
+		main: `
+			export * from './app';
+		`,
+	};
+
+	COMPILED['export type of a schema import'] = {
+		input: { name: 'a' },
+		files: {
+			'other.ts': `
+				import * as t from 'tschema';
+				export const Other = t.object({ name: t.string(), email: t.optional(t.string()) });
+			`,
+			'lib.ts': `
+				import * as t from 'tschema';
+				import { Other } from './other';
+				Other.required!.push('email');
+				export const S = t.object({ name: t.string() });
+			`,
+		},
+		main: `
+			import { S } from './lib';
+			import { Other } from './other';
+			export type { S };
+			let O: any = Other;
+			export const check = (x: unknown) => [parse(S, x), parse(O, x)];
+		`,
+	};
+
 	COMPILED['star string export name'] = {
 		input: 'ab',
 		files: {
@@ -788,6 +871,13 @@ describe('rolldown (mutations)', () => {
 				export const check = (x: unknown) => {
 					try { return parse(t.recursive('x', (t: any) => t.string({ minLength: 5 })), x); } catch { return 'error'; }
 				};
+			`,
+		},
+		'module var in a block': {
+			input: [1],
+			main: `
+				{ var undefined: any = t.string(); }
+				export const check = (x: unknown) => parse(t.array(undefined), x);
 			`,
 		},
 		'builder throws': {
@@ -1421,6 +1511,43 @@ describe('rolldown (mutations)', () => {
 		await expect(compile(files)).rejects.toThrow();
 	});
 
+	it('should not compile when an escape reaches a virtual module', async () => {
+		let dir = await project({
+			'schemas.ts': SHARED,
+			'main.ts': `${HEAD}
+				import { User as U } from 'virtual:reg';
+				import { User } from './schemas';
+				U.required!.push('email');
+				export const check = (x: unknown) => parse(User, x);
+			`,
+		});
+		let reg = {
+			name: 'reg',
+			resolveId: (id: string) => (id === 'virtual:reg' ? '\0virtual:reg' : null),
+			load: (id: string) =>
+				id === '\0virtual:reg'
+					? `export { User } from ${JSON.stringify(join(dir, 'schemas.ts'))};`
+					: null,
+		};
+		let run = async (aot: boolean) => {
+			let out = join(dir, aot ? 'aot' : 'runtime');
+			let b = await bundle({
+				input: join(dir, 'main.ts'),
+				plugins: aot ? [reg, rolldown()] : [reg],
+				resolve: { alias: ALIAS },
+				logLevel: 'silent',
+			});
+			let { output } = await b.write({ dir: out, format: 'esm' });
+			await b.close();
+			let mod = await import(pathToFileURL(join(out, output[0].fileName)).href);
+			return { code: output[0].code, result: mod.check({ name: 'a' }) };
+		};
+		let runtime = await run(false);
+		let aot = await run(true);
+		expect(aot.code).not.toMatch(/tschema:User-/);
+		expect(aot.result).toStrictEqual(runtime.result);
+	});
+
 	it('should keep each tschema copy apart', async () => {
 		let dir = await mkdtemp(join(tmpdir(), 'tschema-'));
 		for (let pkg of ['a', 'b']) {
@@ -1535,19 +1662,30 @@ describe('transform', () => {
 		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
 	});
 
+	it('should not compile calls in enum initializers', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\nenum E { S = 7 }\nenum E { X = parse(S as any, 1) as any }`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should handle deep expressions', async () => {
+		let ctx = context(async () => null);
+		let terms = Array.from({ length: 50_000 }, (_, i) => `'${i}'`).join(' + ');
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst big = ${terms};\nparse(t.string(), 1);`;
+		let out = await hook.handler.call(ctx, code, '/x/main.ts');
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+	});
+
 	it('should treat enum members as names in enum initializers', async () => {
 		let ctx = context(async () => null);
 		let head = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nconst S = t.string();\n`;
 		for (let member of ['S', `'S'`]) {
-			let code = head + `enum E { ${member} = 1, X = parse(S as any, 1) as any }`;
-			expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+			let code = head + `enum E { ${member} = 1, X = delete (S as any).y ? 1 : 2 }\nparse(S, 1);`;
+			let out = await hook.handler.call(ctx, code, '/x/main.ts');
+			expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
 		}
-		let out = await hook.handler.call(
-			ctx,
-			head + `enum E { A = parse(S as any, 1) as any }`,
-			'/x/main.ts',
-		);
-		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+		let code = head + `enum E { A = delete (S as any).y ? 1 : 2 }\nparse(S, 1);`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
 	});
 
 	it('should not compile regex literals the parser cannot build', async () => {
@@ -1783,6 +1921,46 @@ describe('vite', () => {
 			expect(mod.tree({ value: 1, children: [] })).toStrictEqual({ value: 1, children: [] });
 		} finally {
 			await server.close();
+		}
+	});
+
+	it('should recompile in dev mode after a schema file changes', async () => {
+		let root = await project({
+			'schemas.ts': `import * as t from 'tschema';\nexport const User = t.string({ minLength: 2 });\n`,
+			'main.ts': `import { parse } from 'tschema/validate';\nimport { User } from './schemas';\nexport const check = (x: unknown) => parse(User, x);\n`,
+		});
+		let server = await createServer({
+			root,
+			logLevel: 'silent',
+			configFile: false,
+			plugins: [vite()],
+			resolve: { alias: ALIAS },
+			server: { middlewareMode: true, ws: false },
+		});
+
+		let entry = async () => {
+			let out = await server.transformRequest('/main.ts');
+			return /tschema:User-[\da-f]+/.exec(out?.code || '')?.[0];
+		};
+
+		try {
+			let client = await entry();
+			let mod = await server.ssrLoadModule('/main.ts');
+			expect(client).toBeDefined();
+			expect(mod.check('abc')).toStrictEqual('abc');
+			let file = join(root, 'schemas.ts');
+			await writeFile(
+				file,
+				`import * as t from 'tschema';\nexport const User = t.string({ minLength: 5 });\n`,
+			);
+			server.watcher.emit('change', file);
+			for (let i = 0; i < 50 && (await entry()) === client; i++) await Bun.sleep(20);
+			expect(await entry()).not.toStrictEqual(client);
+			mod = await server.ssrLoadModule('/main.ts');
+			expect(mod.check('abc')).toStrictEqual(undefined);
+		} finally {
+			await server.close();
+			await rm(root, { recursive: true });
 		}
 	});
 });
