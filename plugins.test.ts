@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { rolldown as bundle } from 'rolldown';
+import { parseSync } from 'rolldown/utils';
 import { build, createServer } from 'vite';
 import { rolldown, vite } from './plugins';
 import * as suite from './scripts/suite';
@@ -341,6 +342,194 @@ describe('rolldown (scopes)', () => {
 		expect(() => out.mod.keys(1)).toThrow('Invalid schema');
 		expect(() => out.mod.named(1)).toThrow('Invalid schema');
 		expect(() => out.mod.klass(1)).toThrow('Invalid schema');
+	});
+});
+
+describe('rolldown (expressions)', () => {
+	let out: Output;
+
+	beforeAll(async () => {
+		out = await compile({
+			'shared.ts': `
+				import * as t from 'tschema';
+				const D = t.integer();
+				export default D;
+				export var V = t.string();
+				export const Schemas = { A: t.string() };
+				export const BASE = ['a', 'b'];
+				export const LIST = [t.string(), t.integer()];
+				export const PROPS = { a: t.string() };
+			`,
+			'a.ts': `export const Other = 1;`,
+			'b.ts': `import * as t from 'tschema';\nexport const Found = t.boolean();`,
+			'stars.ts': `export * from './a';\nexport * from './b';`,
+			'data.json': `{ "type": "string" }`,
+			'main.ts': `
+				import * as t from 'tschema';
+				import * as v from 'tschema/validate';
+				import { parse } from 'tschema/validate';
+				import D, { V, Schemas, BASE, LIST, PROPS } from './shared';
+				import * as shared from './shared';
+				import * as stars from './stars';
+				import data from './data.json';
+
+				const KEY = 'k';
+				const Counter = t.integer({ minimum: 0 });
+				Counter.minimum++;
+				const Assigned = t.object({ a: t.string() });
+				Object.assign(Assigned, { additionalProperties: true });
+
+				export const fallback = (x: unknown) => parse(D, x);
+				export const paren = (x: unknown) => parse((t.string()), x);
+				export const template = (x: unknown) => parse(t.string({ pattern: \`^a$\` }), x);
+				export const unary = (x: unknown) => parse(t.integer({ minimum: +1 }), x);
+				export const arraySpread = (x: unknown) => parse(t.enum([...BASE, 'c']), x);
+				export const objectSpread = (x: unknown) => parse(t.object({ ...PROPS, b: t.optional(t.integer()) }), x);
+				export const optionalSpread = (x: unknown) => parse(t.object({ a: { ...t.optional(t.string()), description: 'x' } }), x);
+				export const member = (x: unknown) => parse(Schemas.A, x);
+				export const block = (x: unknown) => parse(t.recursive('B', (self) => { return t.object({ next: t.optional(self) }); }), x);
+				export const callSpread = (x: unknown) => parse(t.any(...LIST), x);
+				export const found = (x: unknown) => parse(stars.Found, x);
+				export const multiline = (x: unknown) => parse(
+					D,
+					x,
+				);
+
+				export const exportVar = (x: unknown) => parse(V, x);
+				export const templateExpr = (x: unknown) => parse(t.string({ pattern: \`^\${'a'}$\` }), x);
+				export const unaryNot = (x: unknown) => parse(t.integer({ minimum: ~1 }), x);
+				export const arraySpreadBad = (x: unknown) => parse(t.enum([...'ab']), x);
+				export const objectSpreadBad = (x: unknown) => parse(t.object({ ...[t.string()] }), x);
+				export const computedKey = (x: unknown) => parse(t.object({ [KEY]: t.string() }), x);
+				export const regex = (x: unknown) => parse(t.string({ pattern: /^a$/ as never }), x);
+				export const computedMember = (x: unknown) => parse(Schemas['A'], x);
+				export const missingMember = (x: unknown) => parse((Schemas as Record<string, t.Type>).B, x);
+				export const recursiveFn = (x: unknown) => parse(t.recursive('C', function (self) { return t.array(self); }), x);
+				export const recursiveBlock = (x: unknown) => parse(t.recursive('E', (self) => { const s = t.array(self); return s; }), x);
+				export const callSpreadBad = (x: unknown) => parse(t.any(...[t.string()].values()), x);
+				export const conditional = (x: unknown) => parse(x ? D : V, x);
+				export const json = (x: unknown) => parse(data as t.Type, x);
+				export const namespace = (x: unknown) => parse(shared as never, x);
+				export const missingStar = (x: unknown) => parse((stars as Record<string, t.Type>).Nope, x);
+				export const counter = (x: unknown) => parse(Counter, x);
+				export const assigned = (x: unknown) => parse(Assigned, x);
+				export const computedApi = (x: unknown) => v['parse'](D, x);
+			`,
+		});
+	});
+
+	it('should compile static expressions', () => {
+		let mod = out.mod;
+		expect(mod.fallback(1)).toStrictEqual(1);
+		expect(mod.fallback('x')).toStrictEqual(undefined);
+		expect(mod.paren('x')).toStrictEqual('x');
+		expect(mod.template('a')).toStrictEqual('a');
+		expect(mod.template('b')).toStrictEqual(undefined);
+		expect(mod.unary(1)).toStrictEqual(1);
+		expect(mod.unary(0)).toStrictEqual(undefined);
+		expect(mod.arraySpread('c')).toStrictEqual('c');
+		expect(mod.arraySpread('d')).toStrictEqual(undefined);
+		expect(mod.objectSpread({ a: 'x' })).toStrictEqual({ a: 'x' });
+		expect(mod.objectSpread({ a: 'x', b: 'y' })).toStrictEqual(undefined);
+		expect(mod.optionalSpread({})).toStrictEqual({});
+		expect(mod.member('x')).toStrictEqual('x');
+		expect(mod.block({ next: {} })).toStrictEqual({ next: {} });
+		expect(mod.block({ next: { next: 1 } })).toStrictEqual(undefined);
+		expect(mod.callSpread(1)).toStrictEqual(1);
+		expect(mod.callSpread(true)).toStrictEqual(undefined);
+		expect(mod.found(true)).toStrictEqual(true);
+		expect(mod.multiline(1)).toStrictEqual(1);
+	});
+
+	it('should compile each distinct static schema once', () => {
+		let entries = [...new Set(out.code.match(/tschema:\w+-[\da-f]{8}/g))];
+		expect(entries.filter((x) => !x.startsWith('tschema:schema-'))).toStrictEqual([
+			expect.stringMatching(/^tschema:D-/),
+		]);
+		expect(entries.length).toStrictEqual(10);
+		expect(out.code).toMatch(/new Function/);
+	});
+
+	it('should validate dynamic expressions at runtime', () => {
+		let mod = out.mod;
+		expect(mod.exportVar('x')).toStrictEqual('x');
+		expect(mod.templateExpr('a')).toStrictEqual('a');
+		expect(mod.templateExpr('b')).toStrictEqual(undefined);
+		expect(mod.unaryNot(-2)).toStrictEqual(-2);
+		expect(mod.unaryNot(-3)).toStrictEqual(undefined);
+		expect(mod.arraySpreadBad('b')).toStrictEqual('b');
+		expect(mod.objectSpreadBad({ 0: 1 })).toStrictEqual(undefined);
+		expect(mod.computedKey({ k: 1 })).toStrictEqual(undefined);
+		expect(mod.regex('x')).toStrictEqual('x');
+		expect(mod.computedMember('x')).toStrictEqual('x');
+		expect(() => mod.missingMember('x')).toThrow('Invalid schema');
+		expect(mod.recursiveFn([[]])).toStrictEqual([[]]);
+		expect(mod.recursiveBlock([[1]])).toStrictEqual(undefined);
+		expect(mod.callSpreadBad('x')).toStrictEqual('x');
+		expect(mod.conditional(0)).toStrictEqual(undefined);
+		expect(mod.json('x')).toStrictEqual('x');
+		expect(mod.json(1)).toStrictEqual(undefined);
+		expect(mod.namespace('x')).toStrictEqual('x');
+		expect(() => mod.missingStar('x')).toThrow('Invalid schema');
+		expect(mod.counter(0)).toStrictEqual(undefined);
+		expect(mod.counter(1)).toStrictEqual(1);
+		expect(mod.assigned({ a: 'x', b: 1 })).toStrictEqual({ a: 'x', b: 1 });
+		expect(mod.computedApi(1)).toStrictEqual(1);
+	});
+});
+
+describe('transform', () => {
+	let dir: string;
+	let hook = rolldown().transform as { handler: Function };
+
+	function context(resolve: (source: string) => Promise<{ id: string } | null>) {
+		return {
+			parse(code: string) {
+				let result = parseSync('x.ts', code, { lang: 'ts' });
+				if (result.errors.length) throw new Error(result.errors[0].message);
+				return result.program;
+			},
+			resolve,
+			addWatchFile() {},
+		};
+	}
+
+	beforeAll(async () => {
+		dir = await project({ 'stars.ts': `export * from './missing';` });
+	});
+
+	afterAll(async () => {
+		await rm(dir, { recursive: true });
+	});
+
+	it('should skip invalid code', async () => {
+		let ctx = context(async () => null);
+		let code = `import { parse } from 'tschema/validate';\nparse(,`;
+		expect(await hook.handler.call(ctx, code, '/x/main.ts')).toBe(undefined);
+	});
+
+	it('should unwrap parenthesized schemas', async () => {
+		let ctx = context(async () => null);
+		let code = `import * as t from 'tschema';\nimport { parse } from 'tschema/validate';\nparse((t.string()), 1);`;
+		let out = await hook.handler.call(ctx, code, '/x/main.ts');
+		expect(out.code).toMatch(/__tschema0\.parse\(1\)/);
+	});
+
+	it('should throw unknown resolve errors', async () => {
+		let ctx = context(async () => {
+			throw new Error('boom');
+		});
+		let code = `import { parse } from 'tschema/validate';\nimport { S } from './s';\nparse(S, 1);`;
+		await expect(hook.handler.call(ctx, code, '/x/main.ts')).rejects.toThrow('boom');
+	});
+
+	it('should throw unknown star export errors', async () => {
+		let ctx = context(async (source) => {
+			if (source === './stars') return { id: join(dir, 'stars.ts') };
+			throw new Error('boom');
+		});
+		let code = `import { parse } from 'tschema/validate';\nimport { S } from './stars';\nparse(S, 1);`;
+		await expect(hook.handler.call(ctx, code, join(dir, 'main.ts'))).rejects.toThrow('boom');
 	});
 });
 
