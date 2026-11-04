@@ -333,7 +333,6 @@ let o4 = t.object();
 type O4 = t.Infer<typeof o4>;
 declare let O4: O4;
 
-// oxlint-disable-next-line typescript/no-empty-object-type
 assert<{}>(O4);
 assert<Record<string, unknown>>(O4);
 

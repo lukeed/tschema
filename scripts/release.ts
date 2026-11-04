@@ -21,7 +21,7 @@ content = JSON.stringify(config, null, '\t') + '\n';
 await writeFile(input, content);
 
 // prevent CI error
-await run('oxfmt', ['bunx', 'oxfmt', input]);
+await run('bun fmt', ['bun', 'fmt', input]);
 
 await run('git add', ['git', 'add', input]);
 

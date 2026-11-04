@@ -8,7 +8,7 @@ on:
       - 'v**'
 
 env:
-  BUN_VERSION: 1.4.3
+  BUN_VERSION: 1.4.4
   DENO_VERSION: 2.x
 
 jobs:
@@ -26,11 +26,8 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Lint
-        run: bun run lint
-
       - name: Format
-        run: bun run fmt:check
+        run: bun fmt --check
 
       - name: Type Check
         run: bun run types

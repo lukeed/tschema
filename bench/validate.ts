@@ -69,7 +69,8 @@ group('compile', () => {
 			new Ajv2020().compile({
 				...User,
 				properties: { ...User.properties, email: { type: 'string' }, avatar: { type: 'string' } },
-			}));
+			}),
+		);
 	});
 });
 
