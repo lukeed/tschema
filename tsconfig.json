@@ -11,7 +11,8 @@
 		"verbatimModuleSyntax": true,
 		"paths": {
 			"tschema": ["./mod.ts"],
-			"tschema/validate": ["./validate.ts"]
+			"tschema/validate": ["./validate.ts"],
+			"tschema/standard": ["./standard.ts"]
 		}
 	},
 	"include": ["*.ts", "scripts", "bench"],

@@ -167,6 +167,37 @@ All `format` values that `t.string` accepts are checked. Other keywords are igno
 > [!NOTE]
 > The validator uses `new Function` to compile schemas. Use the [compiler plugins](#compiler) if your environment does not allow `eval` (for example, with a strict Content-Security-Policy).
 
+## Standard Schema
+
+The `tschema/standard` module wraps a schema for libraries that accept [Standard Schema](https://standardschema.dev) or Standard JSON Schema objects.
+
+```ts
+import * as t from 'tschema';
+import * as std from 'tschema/standard';
+
+let User = std.schema(
+  t.object({
+    name: t.string({ minLength: 2 }),
+    email: t.string({ format: 'email' }),
+  }),
+);
+
+let result = User['~standard'].validate(input);
+if (result.issues) {
+  result.issues;
+  //-> [{ message: 'must match format "email"', path: ['email'] }]
+} else {
+  result.value; //-> { name: string; email: string }
+}
+
+User['~standard'].jsonSchema.input({ target: 'draft-2020-12' });
+//-> { type: 'object', properties: { ... }, ... }
+```
+
+The result holds a frozen copy of the schema, so later changes to the input schema do not affect it. Its validator is the same as `validate`, and it compiles on first use.
+
+The JSON Schema converter supports the `draft-2020-12` target only. Other targets throw an error.
+
 ## Compiler
 
 The `tschema/plugins` module has [Vite](https://vite.dev) (v8+) and [Rolldown](https://rolldown.rs) plugins. They compile `validate`, `parse`, and `assert` calls ahead of time, so your bundle does not include the runtime compiler.
