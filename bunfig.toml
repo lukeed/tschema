@@ -1,0 +1,5 @@
+[fmt]
+printWidth = 100
+singleQuote = true
+useTabs = true
+ignorePatterns = ["suite", "*.md"]

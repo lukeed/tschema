@@ -3,9 +3,7 @@
  */
 type Prettify<T> = {
 	[K in keyof T]: T[K];
-} &
-	// oxlint-disable-next-line typescript/no-empty-object-type
-	{};
+} & {};
 
 /**
  * @internal
@@ -279,7 +277,6 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
 function _partial<P extends Properties>(
 	input: _object<P>,
 ): _object<{ [K in keyof P]: _optional<P[K]> }> {
-	// oxlint-disable-next-line no-unused-vars
 	let { required, ...schema } = input;
 	// @ts-expect-error; generic `default` types are not comparable
 	return schema;

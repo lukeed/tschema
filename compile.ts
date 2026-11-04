@@ -429,7 +429,6 @@ export const helpers: Record<string, Helper> = {
 				if (idn) {
 					s = s
 						.normalize('NFKC')
-						// oxlint-disable-next-line no-misleading-character-class
 						.replace(/[\u00ad\u034f\u180b-\u180d\u200b\u2060\ufe00-\ufe0f\ufeff]/g, '')
 						.replace(/[\u3002\uff0e\uff61]/g, '.')
 						.toLowerCase();
@@ -609,7 +608,6 @@ function hoist(c: Context, expr: string): string {
 }
 
 function quote(text: string): string {
-	// oxlint-disable-next-line no-control-regex
 	return /[\\"\x00-\x1f\u2028\u2029\ud800-\udfff]/.test(text)
 		? JSON.stringify(text)
 		: '"' + text + '"';
