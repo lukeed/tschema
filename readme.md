@@ -194,13 +194,13 @@ User['~standard'].jsonSchema.input({ target: 'draft-2020-12' });
 //-> { type: 'object', properties: { ... }, ... }
 ```
 
-The result holds a frozen copy of the schema, so later changes to the input schema do not affect it. Its validator is the same as `validate`, and it compiles on first use.
+The result holds a frozen copy of the schema, so later changes to the input schema do not affect it. Its validator is the same as `validate`, and it compiles on first use. The [compiler plugins](#compiler) compile `std.schema` calls ahead of time, and the bundle keeps only one copy of the schema.
 
 The JSON Schema converter supports the `draft-2020-12` target only. Other targets throw an error.
 
 ## Compiler
 
-The `tschema/plugins` module has [Vite](https://vite.dev) (v8+) and [Rolldown](https://rolldown.rs) plugins. They compile `validate`, `parse`, and `assert` calls ahead of time, so your bundle does not include the runtime compiler.
+The `tschema/plugins` module has [Vite](https://vite.dev) (v8+) and [Rolldown](https://rolldown.rs) plugins. They compile `validate`, `parse`, `assert`, and [`std.schema`](#standard-schema) calls ahead of time, so your bundle does not include the runtime compiler.
 
 ```ts
 // vite.config.ts
