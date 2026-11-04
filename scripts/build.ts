@@ -14,6 +14,7 @@ console.log('? version:', version);
 const ENTRIES: Record<string, string> = {
 	'mod.ts': 'index',
 	'validate.ts': 'validate',
+	'standard.ts': 'standard',
 	'compile.ts': 'compile',
 	'plugins.ts': 'plugins',
 };
@@ -63,6 +64,7 @@ let jsr = {
 	exports: {
 		'.': './mod.ts',
 		'./validate': './validate.ts',
+		'./standard': './standard.ts',
 		'./plugins': './plugins.ts',
 	},
 	imports: {
@@ -130,6 +132,12 @@ let pkg = {
 			import: {
 				types: './validate.d.mts',
 				default: './validate.mjs',
+			},
+		},
+		'./standard': {
+			import: {
+				types: './standard.d.mts',
+				default: './standard.mjs',
 			},
 		},
 		'./plugins': {

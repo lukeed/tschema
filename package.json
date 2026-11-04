@@ -14,6 +14,7 @@
 		"bench:node": "node bench/builder.ts && node bench/validate.ts"
 	},
 	"devDependencies": {
+		"@standard-schema/spec": "1.1.0",
 		"@types/bun": "^1.4.3",
 		"ajv": "^8.17.1",
 		"ajv-formats": "^3.0.1",
