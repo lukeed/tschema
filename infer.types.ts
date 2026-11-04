@@ -334,7 +334,7 @@ type O4 = t.Infer<typeof o4>;
 declare let O4: O4;
 
 assert<{}>(O4);
-assert<Record<string, unknown>>(O4);
+assert<Record<string, t.JSON>>(O4);
 
 assert<O4>({
 	//
@@ -696,7 +696,7 @@ assert<typeof T2>([STRING, true]);
 let not1 = t.not(t.string());
 type NOT1 = t.Infer<typeof not1>;
 declare let NOT1: NOT1;
-assert<unknown>(NOT1);
+assert<t.JSON>(NOT1);
 
 let any1 = t.any(t.string(), t.number());
 type ANY1 = t.Infer<typeof any1>;
@@ -805,7 +805,7 @@ let _pa3 = t.partial(
 
 let u1 = t.unknown();
 declare let U1: t.Infer<typeof u1>;
-assert<unknown>(U1);
+assert<t.JSON>(U1);
 
 assert<unknown>(123);
 
@@ -827,16 +827,16 @@ assert<Record<string, string[]>>(D2);
 // EXACT
 // ---
 
-equal<t.Infer<ReturnType<typeof t.unknown>>, unknown>();
+equal<t.Infer<ReturnType<typeof t.unknown>>, t.JSON>();
 equal<t.Infer<ReturnType<typeof t.null>>, null>();
 equal<t.Infer<ReturnType<typeof t.boolean>>, boolean>();
 equal<t.Infer<ReturnType<typeof t.string>>, string>();
 
 let x1 = t.not(t.string());
-equal<t.Infer<typeof x1>, unknown>();
+equal<t.Infer<typeof x1>, t.JSON>();
 
 let x2 = t.array();
-equal<t.Infer<typeof x2>, unknown[]>();
+equal<t.Infer<typeof x2>, t.JSON[]>();
 
 let x3 = t.string({ enum: ['foo', 'bar'] });
 equal<t.Infer<typeof x3>, 'foo' | 'bar'>();
@@ -848,7 +848,7 @@ let x5 = t.enum(['foo', 1, null]);
 equal<t.Infer<typeof x5>, 'foo' | 1 | null>();
 
 let x6 = t.object();
-equal<t.Infer<typeof x6>, Record<string, unknown>>();
+equal<t.Infer<typeof x6>, Record<string, t.JSON>>();
 
 let x7 = t.object({
 	a: t.unknown(),
@@ -860,8 +860,8 @@ let x7 = t.object({
 equal<
 	t.Infer<typeof x7>,
 	{
-		a: unknown;
-		b?: unknown[];
+		a: t.JSON;
+		b?: t.JSON[];
 		c: Record<string, string>;
 		d: [string, number];
 		e: { readonly f: null };
@@ -1019,7 +1019,7 @@ let ar1 = t.array(t.object({ id: t.integer() }));
 equal<t.Infer<typeof ar1>, { id: number }[]>();
 
 let ar2 = t.array(t.unknown());
-equal<t.Infer<typeof ar2>, unknown[]>();
+equal<t.Infer<typeof ar2>, t.JSON[]>();
 
 let ar3 = t.array(t.object({ a: t.optional(t.string()) }));
 equal<t.Infer<typeof ar3>, { a?: string }[]>();
@@ -1028,7 +1028,7 @@ let ar4 = t.array(t.array(t.number()), { minItems: 1 });
 equal<t.Infer<typeof ar4>, number[][]>();
 
 let ar5 = t.object({ list: t.array(t.unknown()), pair: t.tuple([t.string(), t.number()]) });
-equal<t.Infer<typeof ar5>, { list: unknown[]; pair: [string, number] }>();
+equal<t.Infer<typeof ar5>, { list: t.JSON[]; pair: [string, number] }>();
 
 let ar6 = t.any(t.array(t.string()), t.null());
 equal<t.Infer<typeof ar6>, string[] | null>();

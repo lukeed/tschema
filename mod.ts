@@ -19,7 +19,7 @@ type Scope = [string, unknown][];
 type Lookup<S extends Scope, I> =
 	S extends [[infer K, infer V], ...infer R extends Scope]
 		? K extends I ? V : Lookup<R, I>
-		: unknown;
+		: JSON;
 
 // prettier-ignore
 /**
@@ -36,7 +36,7 @@ type Intersect<T, S extends Scope> =
  * @internal
  * Infer the {@link object} type of the `properties` definitions.
  */
-type Props<P, S extends Scope> = string extends keyof P ? Record<string, unknown> : Prettify<
+type Props<P, S extends Scope> = string extends keyof P ? Record<string, JSON> : Prettify<
 	& { [K in keyof P as P[K] extends Required<P>[K] ? P[K] extends _optional<infer _> ? never : K : never]: Resolve<P[K], S> }
 	& { [K in keyof P as P[K] extends Required<P>[K] ? P[K] extends _optional<infer _> ? K : never : K]?: Resolve<Exclude<P[K], undefined>, S> }
 >;
@@ -46,7 +46,7 @@ type Props<P, S extends Scope> = string extends keyof P ? Record<string, unknown
  * @internal
  * Infer the {@link object} type of the `properties` definitions, using an explicit `required` list.
  */
-type Fields<P, R, S extends Scope> = string extends keyof P ? Record<string, unknown> : Prettify<
+type Fields<P, R, S extends Scope> = string extends keyof P ? Record<string, JSON> : Prettify<
 	& { [K in keyof P as K extends R ? K : never]: Resolve<P[K], S> }
 	& { [K in keyof P as K extends R ? never : K]?: Resolve<Exclude<P[K], undefined>, S> }
 >;
@@ -100,24 +100,24 @@ type Base<T, S extends Scope> =
 	: T extends { anyOf: readonly (infer A)[] } ? Resolve<A, S>
 	: T extends { oneOf: readonly (infer A)[] } ? Resolve<A, S>
 	: T extends { allOf: readonly (infer A)[] } ? Intersect<A, S>
-	: T extends { not: unknown } ? unknown
+	: T extends { not: unknown } ? JSON
 	: T extends { type: 'null' } ? null
 	: T extends { type: 'boolean' } ? boolean
 	: T extends { type: 'string'; enum?: readonly (infer E extends string)[] } ? E
 	: T extends { type: 'number' | 'integer'; enum?: readonly (infer E extends number)[] } ? E
 	: T extends { type: 'array'; prefixItems?: infer P extends readonly unknown[] }
 		? number extends P['length']
-			? T extends { items?: infer I } ? unknown extends I ? unknown[] : Resolve<I, S>[] : unknown[]
+			? T extends { items?: infer I } ? unknown extends I ? JSON[] : Resolve<I, S>[] : JSON[]
 			: Items<P, S>
-	: T extends { type: 'array' } ? unknown[]
+	: T extends { type: 'array' } ? JSON[]
 	: T extends { type: 'object'; properties?: infer P }
 		? 'properties' extends keyof T
 			? T extends { required: readonly (infer R)[] } ? Fields<P, R, S> : Props<P, S>
 		: T extends { additionalProperties: infer A extends Type } ? Record<string, Resolve<A, S>>
-		: Record<string, unknown>
+		: Record<string, JSON>
 	: T extends readonly Type[] ? Items<T, S>
 	: T extends Properties ? Props<T, S>
-	: unknown;
+	: JSON;
 
 /**
  * Infer the TypeScript type(s) information from a {@link Type} definition.
@@ -158,6 +158,17 @@ export type Annotations = {
  * JSON literal value types
  */
 type Value = string | number | boolean | null;
+
+/**
+ * Any JSON value. A schema infers this type when it does not restrict its values.
+ *
+ * ```ts
+ * let meta = t.unknown();
+ * type Meta = t.Infer<typeof meta>;
+ * //-> t.JSON
+ * ```
+ */
+export type JSON = Value | JSON[] | { [key: string]: JSON };
 
 /**
  * The possible `tschema` field value types.
@@ -304,18 +315,18 @@ function _null(options?: Omit<_null, 'type'>): _null {
  * An unknown type.
  *
  * > [!IMPORTANT]
- * > Equivalent to `unknown` in TypeScript, which allows any value.
+ * > Allows any JSON value, and infers the {@link JSON} type.
  */
 type _unknown = Annotations & {
-	default?: unknown;
-	examples?: unknown[];
+	default?: JSON;
+	examples?: JSON[];
 };
 
 /**
  * Defines a schema of unknown type.
  *
  * > [!IMPORTANT]
- * > Equivalent to `unknown` in TypeScript, which allows any value.
+ * > Allows any JSON value, and infers the {@link JSON} type.
  */
 function _unknown(options?: _unknown): _unknown {
 	return options || {};
