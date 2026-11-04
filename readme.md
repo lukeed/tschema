@@ -335,7 +335,7 @@ Zod (4.6) and Zod Mini use an equivalent schema with `z.strictObject`. Zod has n
 | zod/mini                  |  26.36 µs |  47.66 µs |
 | ajv                       |   6.13 ms |   5.58 ms |
 
-The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 4.8 kB gzip with the plugin and 7.9 kB without it.
+The bundle for `bench/aot.ts` (schema, data, and validators, minified) is 4.8 kB gzip with the plugin and 8.0 kB without it.
 
 ## License
 

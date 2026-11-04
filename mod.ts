@@ -210,6 +210,7 @@ type _optional<T extends Type> = T & {
  * > [!NOTE]
  * > Only has an effect within {@link object} definitions.
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _optional<T extends Type>(field: T): _optional<T> {
 	return {
 		...field,
@@ -254,6 +255,7 @@ type _readonly<T extends Type> = T & {
  * //-> readonly string[]
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _readonly<T extends Type>(field: T): _readonly<T> {
 	return {
 		...field,
@@ -285,6 +287,7 @@ function _readonly<T extends Type>(field: T): _readonly<T> {
  * //-> }
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _partial<P extends Properties>(
 	input: _object<P>,
 ): _object<{ [K in keyof P]: _optional<P[K]> }> {
@@ -307,6 +310,7 @@ type _null = Annotations & {
 /**
  * Defines a `null` type.
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _null(options?: Omit<_null, 'type'>): _null {
 	return { ...options, type: 'null' };
 }
@@ -328,6 +332,7 @@ type _unknown = Annotations & {
  * > [!IMPORTANT]
  * > Allows any JSON value, and infers the {@link JSON} type.
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _unknown(options?: _unknown): _unknown {
 	return options || {};
 }
@@ -352,6 +357,7 @@ type _constant<V extends Value> = Annotations & {
  * });
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _constant<const V extends Value>(
 	value: V,
 	options?: Omit<_constant<V>, 'const'>,
@@ -386,6 +392,7 @@ type _enum<V extends Value> = Annotations & {
  * });
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _enum<const V extends Value>(choices: V[], options?: Omit<_enum<V>, 'enum'>): _enum<V> {
 	return {
 		enum: choices,
@@ -407,6 +414,7 @@ type _boolean = Annotations & {
 /**
  * Defines a `boolean` type.
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _boolean(options?: Omit<_boolean, 'type'>): _boolean {
 	return { ...options, type: 'boolean' };
 }
@@ -468,6 +476,7 @@ function _string<const V extends string, F extends _string<V>>(
 
 function _string<F extends _string>(options?: Omit<F, 'type'>): F;
 
+/* @__NO_SIDE_EFFECTS__ */
 function _string(options?: Omit<_string, 'type'>): _string {
 	return { ...options, type: 'string' };
 }
@@ -513,6 +522,7 @@ function _number<const V extends number, F extends _number<V>>(
 
 function _number<F extends _number>(options?: Omit<F, 'type'>): F;
 
+/* @__NO_SIDE_EFFECTS__ */
 function _number(options?: Omit<_number, 'type'>): _number {
 	return { ...options, type: 'number' };
 }
@@ -551,6 +561,7 @@ function _integer<const V extends number, F extends _integer<V>>(
 
 function _integer<F extends _integer>(options?: Omit<F, 'type'>): F;
 
+/* @__NO_SIDE_EFFECTS__ */
 function _integer(options?: Omit<_integer, 'type'>): _integer {
 	return { ...options, type: 'integer' };
 }
@@ -587,6 +598,7 @@ type _array<T> = Annotations & {
  * //-> string[]
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _array<const I extends Type, F extends _array<I>>(
 	items?: I,
 	options?: Omit<F, 'type' | 'items'>,
@@ -633,6 +645,7 @@ type _tuple<T> = Annotations & {
  * //-> [number, string]
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _tuple<const M extends Type[]>(
 	members?: M,
 	options?: Omit<_tuple<M>, 'type' | 'prefixItems'>,
@@ -674,6 +687,7 @@ type _dict<T extends Type> = Annotations & {
  * //-> Record<string, number>
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _dict<const I extends Type, F extends _dict<I>>(
 	value: I,
 	options?: Omit<F, 'type' | 'additionalProperties'>,
@@ -795,6 +809,7 @@ type _object<T extends Properties = Properties> = Annotations & {
  * //->   }
  * //-> }
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _object<
 	P extends Properties,
 	T extends _object<P>,
@@ -857,6 +872,7 @@ type _any<T> = {
  * //-> FAIL: `"too long"` or `-5`
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _any<T extends Type[]>(...anyOf: T): _any<T[number]> {
 	return { anyOf };
 }
@@ -884,6 +900,7 @@ type _one<T> = {
  * //-> FAIL: `15` or `2`
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _one<T extends Type[]>(...oneOf: T): _one<T[number]> {
 	return { oneOf };
 }
@@ -902,6 +919,7 @@ type _not<T> = {
  *
  * Declares that a field must *not* be valid against the schema.
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _not<T extends Type>(not: T): _not<T> {
 	return { not };
 }
@@ -928,6 +946,7 @@ type _all<T> = {
  * //-> { name: string } & { age: number }
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _all<T extends Type[]>(...allOf: T): _all<T[number]> {
 	return { allOf };
 }
@@ -971,6 +990,7 @@ type _recursive<I extends string, T extends Type> = T & {
  * //-> }
  * ```
  */
+/* @__NO_SIDE_EFFECTS__ */
 function _recursive<const I extends string, T extends Type>(
 	id: I,
 	define: (self: _self<I>) => T,
