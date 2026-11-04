@@ -16,6 +16,7 @@ const ROOT = import.meta.dir;
 
 const ALIAS = {
 	'tschema/validate': join(ROOT, 'validate.ts'),
+	'tschema/standard': join(ROOT, 'standard.ts'),
 	tschema: join(ROOT, 'mod.ts'),
 };
 
@@ -123,6 +124,7 @@ describe('rolldown', () => {
 	it('should compile every static call', () => {
 		expect(out.code).not.toMatch(/new Function/);
 		expect(out.code).not.toMatch(/function compile\(/);
+		expect(out.code).not.toMatch(/standard/);
 		expect(out.code).toMatch(/tschema:Person-/);
 		expect(out.code).toMatch(/tschema:Tree-/);
 		expect(out.code).toMatch(/tschema:Local-/);
@@ -244,6 +246,81 @@ describe('rolldown (dynamic)', () => {
 		expect(out.mod.shadow('x')).toStrictEqual('x');
 		expect(out.mod.proto('x')).toStrictEqual('x');
 		expect(out.mod.proto(1)).toStrictEqual(undefined);
+	});
+});
+
+describe('rolldown (standard)', () => {
+	let out: Output;
+
+	beforeAll(async () => {
+		out = await compile({
+			'schemas.ts': SCHEMAS,
+			'tree.ts': TREE,
+			'main.ts': `
+				import * as t from 'tschema';
+				import * as std from 'tschema/standard';
+				import { schema } from 'tschema/standard';
+				import { validate } from 'tschema/validate';
+				import { Person } from './schemas';
+
+				const Note = t.object({ text: t.string({ description: 'only-once' }) });
+
+				function tool<T>(def: T) {
+					return def;
+				}
+
+				function make(min: number) {
+					return std.schema(t.integer({ minimum: min }));
+				}
+
+				const note = tool({ input: std.schema(Note) });
+				const person = schema(Person);
+
+				export const check = (x: unknown) => note.input['~standard'].validate(x);
+				export const json = (target: string) => note.input['~standard'].jsonSchema.input({ target });
+				export const named = (x: unknown) => person['~standard'].validate(x);
+				export const direct = (x: unknown) => validate(Person, x);
+				export const dynamic = (x: unknown) => make(5)['~standard'].validate(x);
+			`,
+		});
+	});
+
+	it('should compile static calls and share modules with validate', () => {
+		let entries = [...new Set(out.code.match(/tschema:\w+-[\da-f]{16}(\.standard)?/g))].sort();
+		expect(entries).toStrictEqual([
+			expect.stringMatching(/^tschema:Note-[\da-f]{16}$/),
+			expect.stringMatching(/^tschema:Note-[\da-f]{16}\.standard$/),
+			expect.stringMatching(/^tschema:Person-[\da-f]{16}$/),
+			expect.stringMatching(/^tschema:Person-[\da-f]{16}\.standard$/),
+		]);
+	});
+
+	it('should keep one copy of the JSON schema', () => {
+		expect(out.code.match(/only-once/g)).toStrictEqual(['only-once']);
+		expect(out.mod.json('draft-2020-12')).toStrictEqual({
+			type: 'object',
+			properties: { text: { type: 'string', description: 'only-once' } },
+			additionalProperties: false,
+			required: ['text'],
+		});
+	});
+
+	it('should validate compiled schemas', () => {
+		expect(out.mod.check({ text: 'x' })).toStrictEqual({ value: { text: 'x' } });
+		expect(out.mod.check({ text: 1 })).toStrictEqual({
+			issues: [{ message: 'must be string', path: ['text'] }],
+		});
+		let input = { name: 'xy', email: 'a@b.co', address: { city: 'a', zip: '12345' } };
+		expect(out.mod.named(input)).toStrictEqual({ value: input });
+		expect(out.mod.named({ ...input, address: { city: 'a', zip: 'x' } })).toStrictEqual({
+			issues: [{ message: 'must match pattern "^\\d{5}$"', path: ['address', 'zip'] }],
+		});
+		expect(out.mod.direct(input)).toStrictEqual({ ok: true, value: input });
+	});
+
+	it('should validate dynamic schemas at runtime', () => {
+		expect(out.mod.dynamic(5)).toStrictEqual({ value: 5 });
+		expect(out.mod.dynamic(4)).toStrictEqual({ issues: [{ message: 'must be >= 5', path: [] }] });
 	});
 });
 
@@ -1895,6 +1972,37 @@ describe('vite', () => {
 		let code = output.output[0].code;
 		expect(code).not.toMatch(/new Function/);
 		expect(code).toMatch(/tschema:Person-/);
+	});
+
+	it('should compile std.schema calls in build mode', async () => {
+		let root = await project({
+			'schemas.ts': SCHEMAS,
+			'tree.ts': TREE,
+			'main.ts': `
+				import * as std from 'tschema/standard';
+				import { Person } from './schemas';
+
+				export const person = std.schema(Person);
+			`,
+		});
+		let result = await build({
+			root,
+			logLevel: 'silent',
+			configFile: false,
+			plugins: [vite()],
+			resolve: { alias: ALIAS },
+			build: {
+				write: false,
+				minify: false,
+				lib: { entry: join(root, 'main.ts'), formats: ['es'] },
+			},
+		});
+		await rm(root, { recursive: true });
+		let output = Array.isArray(result) ? result[0] : result;
+		if (!('output' in output)) throw new Error('Expected build output');
+		let code = output.output[0].code;
+		expect(code).not.toMatch(/new Function/);
+		expect(code).toMatch(/tschema:Person-[\da-f]{16}\.standard/);
 	});
 
 	it('should not read query imports as code', async () => {

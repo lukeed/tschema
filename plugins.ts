@@ -13,6 +13,7 @@ import type { Plugin as VitePlugin } from 'vite';
 
 const CORE = new Set(['tschema', 'npm:tschema', '@lukeed/tschema', 'jsr:@lukeed/tschema']);
 const VALIDATE = new Set([...CORE].map((name) => name + '/validate'));
+const STANDARD = new Set([...CORE].map((name) => name + '/standard'));
 const API = new Set(['validate', 'parse', 'assert']);
 const BUILDERS = new Map<string, unknown>(Object.entries(t));
 
@@ -64,7 +65,7 @@ type Module = {
 	pending: Set<string>;
 	/** The positions of value references to each import binding. */
 	refs: Map<string, number[]>;
-	/** The `tschema/validate` calls that the plugin may compile. */
+	/** The `tschema/validate` and `tschema/standard` calls that the plugin may compile. */
 	calls: Call[];
 	/** The escaped imports that are only called, never handed on. */
 	invoked: Set<string>;
@@ -91,7 +92,7 @@ type Edit = [start: number, end: number, text: string];
 
 /**
  * @internal
- * A `validate`, `parse`, or `assert` call: its node, function name, import source, and scopes.
+ * A `validate`, `parse`, `assert`, or `schema` call: its node, function name, import source, and scopes.
  */
 type Call = [node: ESTree.CallExpression, api: string, source: string, stack: Set<string>[]];
 
@@ -440,9 +441,9 @@ function usage(
 				if (p.callee === child) return child === node ? CALL : true;
 				let id = p.callee.type === 'MemberExpression' ? p.callee.object : p.callee;
 				let b = id.type === 'Identifier' && !shadowed(id.name, stack) && mod.bindings.get(id.name);
-				if (b && b.kind === 'import' && VALIDATE.has(b.source)) {
+				if (b && b.kind === 'import' && (VALIDATE.has(b.source) || STANDARD.has(b.source))) {
 					if ((id === p.callee) === (b.name === undefined)) return true;
-					// validate and parse return their input
+					// validate and parse return their input, and std.schema holds a frozen copy
 					if (p.arguments[0] === child && child.type !== 'SpreadElement') return false;
 					break;
 				}
@@ -521,7 +522,7 @@ function plain(mod: Module, node: ESTree.ObjectExpression, stack: Set<string>[])
 
 /**
  * @internal
- * Find the `tschema/validate` function name and import source for a call's `callee`, if any.
+ * Find the `tschema/validate` or `tschema/standard` function name and import source for a call's `callee`, if any.
  */
 function api(
 	mod: Module,
@@ -531,7 +532,8 @@ function api(
 	let local = callee.type === 'Identifier' ? callee.name : root(callee);
 	if (!local) return;
 	let b = mod.bindings.get(local);
-	if (!b || b.kind !== 'import' || !VALIDATE.has(b.source) || shadowed(local, stack)) return;
+	if (!b || b.kind !== 'import' || shadowed(local, stack)) return;
+	if (!VALIDATE.has(b.source) && !STANDARD.has(b.source)) return;
 	let name =
 		callee.type === 'Identifier'
 			? b.name
@@ -542,7 +544,7 @@ function api(
 				  callee.property.type === 'Identifier'
 				? callee.property.name
 				: '';
-	if (name && API.has(name)) return [name, b.source];
+	if (name && (STANDARD.has(b.source) ? name === 'schema' : API.has(name))) return [name, b.source];
 }
 
 /**
@@ -688,7 +690,7 @@ function analyze(id: string, ast: ESTree.Program): Module {
 			let found = api(mod, node.callee, stack);
 			if (
 				found &&
-				node.arguments.length === 2 &&
+				node.arguments.length === (STANDARD.has(found[1]) ? 1 : 2) &&
 				node.arguments.every((a) => a.type !== 'SpreadElement')
 			) {
 				mod.calls.push([node, ...found, stack]);
@@ -819,7 +821,7 @@ async function attempt(s: Session, fn: () => Promise<unknown>, lenient = false) 
 }
 
 async function target(s: Session, mod: Module, source: string): Promise<Module> {
-	if (CORE.has(source) || VALIDATE.has(source)) throw new Dynamic();
+	if (CORE.has(source) || VALIDATE.has(source) || STANDARD.has(source)) throw new Dynamic();
 	let resolved = await s.ctx.resolve(source, mod.id);
 	if (!resolved || resolved.external) throw new Dynamic();
 	if (resolved.id.startsWith('\0')) throw new Foreign();
@@ -1160,11 +1162,11 @@ async function evaluate(
 
 /**
  * @internal
- * Generate the ahead-of-time compiled module for a schema.
+ * Generate the ahead-of-time compiled module for a schema, from the `tschema` import source `base`.
  */
-function emit(schema: unknown, from: string): string {
+function emit(schema: unknown, base: string): string {
 	let { code, deps } = compile(schema, ['validate', 'parse', 'assert']);
-	let out = `import { ValidationError } from ${JSON.stringify(from)};\n`;
+	let out = `import { ValidationError } from ${JSON.stringify(base + '/validate')};\n`;
 	if (deps.length) {
 		out += `import { ${deps.map((d) => '$' + d).join(', ')} } from "${PREFIX}helpers";\n`;
 	}
@@ -1368,22 +1370,33 @@ function plugin() {
 				let schema = schemas[i];
 				if (typeof schema !== 'object' || schema === null) continue;
 
+				let base = from.slice(0, from.lastIndexOf('/'));
 				try {
-					var out = emit(schema, from);
+					var out = emit(schema, base);
 				} catch {
 					// the runtime compiler throws the same error when the call runs
 					continue;
 				}
 
-				let resolved = await ctx.resolve(from, id);
+				let resolved = await ctx.resolve(base + '/validate', id);
 				let hash = createHash('sha256')
-					.update(out + '\0' + (resolved ? resolved.id : from))
+					.update(out + '\0' + (resolved ? resolved.id : base))
 					.digest('hex')
 					.slice(0, 16);
 				let label = arg.type === 'Identifier' ? arg.name : 'schema';
 				let entry = `${label}-${hash}`;
 
 				if (!compiled.has(entry)) compiled.set(entry, { code: out, importer: id });
+				if (!input) {
+					let main = entry;
+					entry += '.standard';
+					if (!compiled.has(entry)) {
+						let wrapper = `import { validate } from ${JSON.stringify(PREFIX + main)};\n`;
+						wrapper += `import { compiled } from ${JSON.stringify(base + '/standard')};\n`;
+						wrapper += `export const standard = (schema) => compiled(schema, validate);\n`;
+						compiled.set(entry, { code: wrapper, importer: id });
+					}
+				}
 
 				let local = imports.get(entry);
 				if (!local) {
@@ -1393,8 +1406,13 @@ function plugin() {
 					imports.set(entry, local);
 				}
 
-				edits.push([node.start, input.start, `${local}.${api}(`]);
-				removed.push([node.start, input.start]);
+				if (input) {
+					edits.push([node.start, input.start, `${local}.${api}(`]);
+					removed.push([node.start, input.start]);
+				} else {
+					edits.push([node.start, arg.start, `/* @__PURE__ */ ${local}.standard(`]);
+					removed.push([node.start, arg.start]);
+				}
 			}
 
 			if (!edits.length) return;
@@ -1435,9 +1453,9 @@ function plugin() {
 }
 
 /**
- * Compile static `tschema/validate` calls ahead of time with Vite.
+ * Compile static `tschema/validate` and `tschema/standard` calls ahead of time with Vite.
  *
- * The `validate`, `parse`, and `assert` calls are replaced when their schema is known at build time.
+ * The `validate`, `parse`, `assert`, and `schema` calls are replaced when their schema is known at build time.
  * A schema is known when it is built from `tschema` calls and literal values only, including
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
  *
@@ -1478,7 +1496,7 @@ export function vite(): VitePlugin {
 			return hooks.load(id);
 		},
 		transform: {
-			filter: { code: /tschema\/validate/ },
+			filter: { code: /tschema\/(validate|standard)/ },
 			handler(code, id) {
 				return hooks.transform(this, code, id);
 			},
@@ -1487,9 +1505,9 @@ export function vite(): VitePlugin {
 }
 
 /**
- * Compile static `tschema/validate` calls ahead of time with Rolldown.
+ * Compile static `tschema/validate` and `tschema/standard` calls ahead of time with Rolldown.
  *
- * The `validate`, `parse`, and `assert` calls are replaced when their schema is known at build time.
+ * The `validate`, `parse`, `assert`, and `schema` calls are replaced when their schema is known at build time.
  * A schema is known when it is built from `tschema` calls and literal values only, including
  * `const` references and imports of such schemas. All other calls use the runtime compiler.
  *
@@ -1518,7 +1536,7 @@ export function rolldown(): RolldownPlugin {
 			return hooks.load(id);
 		},
 		transform: {
-			filter: { code: /tschema\/validate/ },
+			filter: { code: /tschema\/(validate|standard)/ },
 			handler(code, id) {
 				return hooks.transform(this, code, id);
 			},

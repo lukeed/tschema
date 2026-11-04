@@ -44,6 +44,7 @@ const ROOT = join(import.meta.dir, '..');
 
 const ALIAS = {
 	'tschema/validate': join(ROOT, 'validate.ts'),
+	'tschema/standard': join(ROOT, 'standard.ts'),
 	tschema: join(ROOT, 'mod.ts'),
 };
 

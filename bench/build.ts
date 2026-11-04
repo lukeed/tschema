@@ -17,6 +17,7 @@ async function bundle(file: string, aot: boolean) {
 		resolve: {
 			alias: {
 				'tschema/validate': join(root, 'npm/validate.mjs'),
+				'tschema/standard': join(root, 'npm/standard.mjs'),
 				tschema: join(root, 'npm/index.mjs'),
 			},
 		},
